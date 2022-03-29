@@ -1,0 +1,20 @@
+node_modules
+.env
+coverage
+coverage.json
+typechain
+accounts.*txt
+
+#Hardhat files
+cache
+artifacts
+
+#Output files
+output
+
+#Logs
+*.log
+
+#Other
+airdrop.csv
+.vscode

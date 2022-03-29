@@ -1,0 +1,14 @@
+{
+  "extends": "solhint:recommended",
+  "rules": {
+    "func-name-mixedcase": "off",
+    "no-simple-event-func-name": "off",
+    "compiler-version": ["error", "^0.8.4"],
+    "func-visibility": ["warn", { "ignoreConstructors": true }],
+    "not-rely-on-time": "off",
+    "max-states-count": ["warn", 100],
+    "max-line-length": ["warn", 150],
+    "indent": ["warn", 4],
+    "avoid-low-level-calls": "off"
+  }
+}
