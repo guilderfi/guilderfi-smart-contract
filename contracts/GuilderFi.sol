@@ -9,13 +9,11 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./IDexPair.sol";
 import "./IDexRouter.sol";
 import "./IDexFactory.sol";
+import "./IGuilderFi.sol";
 
-contract GuilderFi is IERC20, Ownable {
+contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
   using SafeMath for uint256;
-
-  // EVENTS
-  event LogRebase(uint256 indexed epoch, uint256 totalSupply);
 
   // TOKEN SETTINGS
   string private _name = "GuilderFi";
@@ -29,26 +27,26 @@ contract GuilderFi is IERC20, Ownable {
 
   // SUPPLY CONSTANTS
   uint256 private constant INITIAL_FRAGMENTS_SUPPLY = 100 * 10**6 * 10**DECIMALS; // 100 million
-  uint256 private constant MAX_SUPPLY = 5 * 10**12 * 10**DECIMALS; // 5 trillion
+  uint256 private constant MAX_SUPPLY = 82 * 10**21 * 10**DECIMALS;
   uint256 private constant TOTAL_GONS = MAX_UINT256 - (MAX_UINT256 % INITIAL_FRAGMENTS_SUPPLY);
 
   // REBASE SETTINGS
-  uint256 public constant YEAR1_REBASE_RATE = 707; // 0.00707 %
-  uint256 public constant YEAR2_REBASE_RATE = 641; // 0.00641 %
-  uint256 public constant YEAR3_REBASE_RATE = 575; // 0.00575 %
-  uint256 public constant YEAR4_REBASE_RATE = 509; // 0.00509 %
-  uint256 public constant YEAR5_REBASE_RATE = 443; // 0.00443 %
-  uint256 public constant YEAR6_REBASE_RATE = 311; // 0.00311 %
-  uint8   public constant REBASE_RATE_DECIMALS = 7;
-  uint256 public constant REBASE_FREQUENCY = 12 minutes;
+  uint256 private constant YEAR1_REBASE_RATE = 1600; // 0.01600 %
+  uint256 private constant YEAR2_REBASE_RATE = 1440; // 0.01440 %
+  uint256 private constant YEAR3_REBASE_RATE = 1280; // 0.01280 %
+  uint256 private constant YEAR4_REBASE_RATE = 1130; // 0.01130 %
+  uint256 private constant YEAR5_REBASE_RATE = 970; // 0.00970 %
+  uint256 private constant YEAR6_REBASE_RATE = 286; // 0.00286 %
+  uint8   private constant REBASE_RATE_DECIMALS = 7;
+  uint256 private constant REBASE_FREQUENCY = 12 minutes;
   
   // REBASE VARIABLES
-  uint256 public maxRebaseCount = 40; // 8 hours
+  uint256 public maxRebaseBatchSize = 40; // 8 hours
   uint256 public pendingRebases = 0;
   
   // ADDRESSES
   address public treasuryAddress = 0xdF6240E7f63cbFdb23e50D20270ECA8D457781B6; 
-  address public insuranceAddress = 0x00E0B8c741E77fC0F877f6A4Ca372B878E08b89a;
+  address public lrfAddress = 0x00E0B8c741E77fC0F877f6A4Ca372B878E08b89a;
   address public autoLiquidityAddress = 0x6Ba7B06dB3D5F8eB11d25B0209Dc76517787173F;
   address public burnAddress = DEAD;
   
@@ -57,21 +55,19 @@ contract GuilderFi is IERC20, Ownable {
   // address private constant DEX_ROUTER_ADDRESS = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1; // PancakeSwap BSC Testnet
 
   // FEES
-  struct Fee {
-    uint256 treasuryFee;
-    uint256 insuranceFee;
-    uint256 liquidityFee;
-    uint256 burnFee;
-    uint256 totalFee;
-  }
+  uint256 private constant MAX_BUY_FEES = 200; // 20%
+  uint256 private constant MAX_SELL_FEES = 240; // 24%
+  uint256 private constant FEE_DENOMINATOR = 1000;
   
+  // Buy fees = 3% treasury, 5% LRF, 5% auto liquidity, 0% burn
   Fee private _buyFees = Fee(30, 50, 50, 0, 130);
+  
+  // Sell fees = 7% treasury, 5% LRF, 5% auto liquidity, 0% burn
   Fee private _sellFees = Fee(70, 50, 50, 0, 170);
-  uint256 public feeDenominator = 1000;
 
   // FEES COLLECTED
   uint256 public treasuryFeesCollected;
-  uint256 public insuranceFeesCollected;
+  uint256 public lrfFeesCollected;
 
   // SETTING FLAGS
   bool public swapEnabled = true;
@@ -82,7 +78,7 @@ contract GuilderFi is IERC20, Ownable {
   bool private _inSwap = false;
 
   // EXCHANGE VARIABLES
-  address public pairAddress;
+  address private _pairAddress;
   IDexRouter public router;
   IDexPair public pair;
   
@@ -125,8 +121,10 @@ contract GuilderFi is IERC20, Ownable {
 
   constructor() Ownable() {
 
-    // Set up DEX router/pair
-    setDex(DEX_ROUTER_ADDRESS);
+    // set up DEX router/pair
+    router = IDexRouter(DEX_ROUTER_ADDRESS); 
+    _pairAddress = IDexFactory(router.factory()).createPair(router.WETH(), address(this));
+    pair = IDexPair(_pairAddress);
 
     // set exchange router allowance
     _allowedFragments[address(this)][address(router)] = type(uint256).max;
@@ -149,7 +147,7 @@ contract GuilderFi is IERC20, Ownable {
   /*
    * REBASE FUNCTIONS
    */ 
-  function rebase() public {
+  function rebase() public override {
     
     if (_inSwap || !isOpen) {
       return;
@@ -166,9 +164,9 @@ contract GuilderFi is IERC20, Ownable {
     } 
     
     // if there are too many rebases, execute a maximum batch size
-    if (times > maxRebaseCount) {
-      pendingRebases = pendingRebases.add(times).sub(maxRebaseCount);
-      times = maxRebaseCount;
+    if (times > maxRebaseBatchSize) {
+      pendingRebases = pendingRebases.add(times).sub(maxRebaseBatchSize);
+      times = maxRebaseBatchSize;
     } else {
       pendingRebases = 0;
     }
@@ -190,7 +188,7 @@ contract GuilderFi is IERC20, Ownable {
     emit LogRebase(lastEpoch, _totalSupply);
   }
 
-  function getRebaseRate() public view returns (uint256) {
+  function getRebaseRate() public view override returns (uint256) {
 
     // calculate rebase rate depending on time passed since token launch
     uint256 deltaTimeFromInit = block.timestamp - initRebaseStartTime;
@@ -210,15 +208,24 @@ contract GuilderFi is IERC20, Ownable {
     }
   }
 
-  function transfer(address to, uint256 value) external override validRecipient(to) returns (bool) {
+  function transfer(address to, uint256 value) external
+    override(IGuilderFi, IERC20)
+    validRecipient(to)
+    returns (bool) {
+    
     _transferFrom(msg.sender, to, value);
     return true;
   }
 
-  function transferFrom(address from, address to, uint256 value) external override validRecipient(to) returns (bool) {
+  function transferFrom(address from, address to, uint256 value) external
+    override(IGuilderFi, IERC20)
+    validRecipient(to)
+    returns (bool) {
+
     if (_allowedFragments[from][msg.sender] != type(uint256).max) {
       _allowedFragments[from][msg.sender] = _allowedFragments[from][msg.sender].sub(value, "Insufficient allowance");
     }
+
     _transferFrom(from, to, value);
     return true;
   }
@@ -268,26 +275,26 @@ contract GuilderFi is IERC20, Ownable {
     return true;
   }
 
-  function takeFee(address, address recipient, uint256 gonAmount) internal  returns (uint256) {
+  function takeFee(address, address recipient, uint256 gonAmount) internal returns (uint256) {
 
-    Fee storage fees = (recipient == pairAddress) ? _sellFees : _buyFees;
+    Fee storage fees = (recipient == _pairAddress) ? _sellFees : _buyFees;
 
-    uint256 burnAmount = gonAmount.div(feeDenominator).mul(fees.burnFee);
-    uint256 treasuryAmount = gonAmount.div(feeDenominator).mul(fees.treasuryFee);
-    uint256 insuranceAmount = gonAmount.div(feeDenominator).mul(fees.insuranceFee);
-    uint256 liquidityAmount = gonAmount.div(feeDenominator).mul(fees.liquidityFee);
-    uint256 totalFeeAmount = burnAmount + treasuryAmount + insuranceAmount + liquidityAmount;
+    uint256 burnAmount = gonAmount.div(FEE_DENOMINATOR).mul(fees.burnFee);
+    uint256 treasuryAmount = gonAmount.div(FEE_DENOMINATOR).mul(fees.treasuryFee);
+    uint256 lrfAmount = gonAmount.div(FEE_DENOMINATOR).mul(fees.lrfFee);
+    uint256 liquidityAmount = gonAmount.div(FEE_DENOMINATOR).mul(fees.liquidityFee);
+    uint256 totalFeeAmount = burnAmount + treasuryAmount + lrfAmount + liquidityAmount;
      
     // burn 
     _gonBalances[burnAddress] = _gonBalances[burnAddress].add(burnAmount);
 
     // add treasury fees to smart contract
-    _gonBalances[treasuryAddress] = _gonBalances[address(this)].add(treasuryAmount);
+    _gonBalances[address(this)] = _gonBalances[address(this)].add(treasuryAmount);
     treasuryFeesCollected = treasuryFeesCollected.add(treasuryAmount);
     
-    // add insurance fees to smart contract
-    _gonBalances[insuranceAddress] = _gonBalances[address(this)].add(insuranceAmount);
-    insuranceFeesCollected = insuranceFeesCollected.add(insuranceAmount);
+    // add lrf fees to smart contract
+    _gonBalances[address(this)] = _gonBalances[address(this)].add(lrfAmount);
+    lrfFeesCollected = lrfFeesCollected.add(lrfAmount);
 
     // add liquidity fees to liquidity address
     _gonBalances[autoLiquidityAddress] = _gonBalances[autoLiquidityAddress].add(liquidityAmount);
@@ -344,8 +351,10 @@ contract GuilderFi is IERC20, Ownable {
 
   function swapBack() internal swapping {
 
-    uint256 totalGonFeesCollected = treasuryFeesCollected.add(insuranceFeesCollected);
-    uint256 amountToSwap = totalGonFeesCollected.div(_gonsPerFragment);
+    uint256 totalGonFeesCollected = treasuryFeesCollected.add(lrfFeesCollected);
+    uint256 amountToSwap = _gonBalances[address(this)].div(_gonsPerFragment);
+
+    _gonBalances[address(this)] = 0;
 
     if (amountToSwap == 0) {
       return;
@@ -368,13 +377,16 @@ contract GuilderFi is IERC20, Ownable {
 
     uint256 amountETH = address(this).balance.sub(balanceBefore);
     uint256 treasuryETH = amountETH.mul(treasuryFeesCollected).div(totalGonFeesCollected);
-    uint256 insuranceETH = amountETH.sub(treasuryETH);
+    uint256 lrfETH = amountETH.sub(treasuryETH);
 
+    treasuryFeesCollected = 0;
+    lrfFeesCollected = 0;
+    
     // send eth to treasury
     (bool success, ) = payable(treasuryAddress).call{ value: treasuryETH }("");
 
-    // send eth to insurance
-    (success, ) = payable(insuranceAddress).call{ value: insuranceETH }("");
+    // send eth to lrf
+    (success, ) = payable(lrfAddress).call{ value: lrfETH }("");
   }
 
   /*
@@ -382,7 +394,7 @@ contract GuilderFi is IERC20, Ownable {
    */ 
   function shouldTakeFee(address from, address to) internal view returns (bool) {
     return 
-      (pairAddress == from || pairAddress == to) &&
+      (_pairAddress == from || _pairAddress == to) &&
       !_isFeeExempt[from];
   }
 
@@ -391,7 +403,7 @@ contract GuilderFi is IERC20, Ownable {
       autoRebaseEnabled &&
       isOpen &&
       (_totalSupply < MAX_SUPPLY) &&
-      msg.sender != pairAddress  &&
+      msg.sender != _pairAddress  &&
       !_inSwap &&
       block.timestamp >= (lastRebaseTime + REBASE_FREQUENCY);
   }
@@ -400,24 +412,25 @@ contract GuilderFi is IERC20, Ownable {
     return
       autoAddLiquidityEnabled && 
       !_inSwap && 
-      msg.sender != pairAddress &&
+      msg.sender != _pairAddress &&
       block.timestamp >= (lastAddLiquidityTime + 2 days);
   }
 
   function shouldSwapBack() internal view returns (bool) {
     return 
       !_inSwap &&
-      msg.sender != pairAddress; 
+      swapEnabled &&
+      msg.sender != _pairAddress; 
   }
 
   /*
    * TOKEN ALLOWANCE/APPROVALS
    */ 
-  function allowance(address owner_, address spender) external view override returns (uint256) {
+  function allowance(address owner_, address spender) public view override(IGuilderFi, IERC20) returns (uint256) {
     return _allowedFragments[owner_][spender];
   }
 
-  function decreaseAllowance(address spender, uint256 subtractedValue) external returns (bool) {
+  function decreaseAllowance(address spender, uint256 subtractedValue) external override returns (bool) {
     uint256 oldValue = _allowedFragments[msg.sender][spender];
     
     if (subtractedValue >= oldValue) {
@@ -435,7 +448,7 @@ contract GuilderFi is IERC20, Ownable {
     return true;
   }
 
-  function increaseAllowance(address spender, uint256 addedValue) external returns (bool) {
+  function increaseAllowance(address spender, uint256 addedValue) external override returns (bool) {
     _allowedFragments[msg.sender][spender] = _allowedFragments[msg.sender][spender].add(addedValue);
     
     emit Approval(
@@ -447,71 +460,102 @@ contract GuilderFi is IERC20, Ownable {
     return true;
   }
 
-  function approve(address spender, uint256 value) external override returns (bool) {
+  function approve(address spender, uint256 value) external override(IGuilderFi, IERC20) returns (bool) {
     _allowedFragments[msg.sender][spender] = value;
     emit Approval(msg.sender, spender, value);
     return true;
   }
 
-  function manualSync() external {
-    IDexPair(pairAddress).sync();
+  function manualSync() override external {
+    IDexPair(_pairAddress).sync();
   }
 
   /*
    * PUBLIC SETTER FUNCTIONS
    */ 
-  function setAutoRebase(bool _flag) external onlyOwner {
-    autoRebaseEnabled = _flag;
-    if (_flag) {
-      lastRebaseTime = block.timestamp;
-    }
+  function setAutoSwap(bool _flag) external override onlyOwner {
+    swapEnabled = _flag;
   }
 
-  function setAutoAddLiquidity(bool _flag) external onlyOwner {
+  function setAutoAddLiquidity(bool _flag) external override onlyOwner {
     autoAddLiquidityEnabled = _flag;
     if(_flag) {
       lastAddLiquidityTime = block.timestamp;
     }
   }
 
-  function setFeeExempt(address _address, bool _flag) external onlyOwner {
+  function setAutoRebase(bool _flag) override external onlyOwner {
+    autoRebaseEnabled = _flag;
+    if (_flag) {
+      lastRebaseTime = block.timestamp;
+    }
+  }
+
+  function setFeeExempt(address _address, bool _flag) external override onlyOwner {
     _isFeeExempt[_address] = _flag;
   }
 
-  function setBlacklist(address _address, bool _flag) external onlyOwner {
+  function setBlacklist(address _address, bool _flag) external override onlyOwner {
     blacklist[_address] = _flag;  
   }
 
-  function allowPreSaleTransfer(address _addr, bool _flag) external onlyOwner {
+  function allowPreSaleTransfer(address _addr, bool _flag) external override onlyOwner {
     _allowPreSaleTransfer[_addr] = _flag;
   }
 
-  function setMaxRebaseCount(uint256 _maxRebaseCount) external onlyOwner {
-    maxRebaseCount = _maxRebaseCount;
+  function setMaxRebaseBatchSize(uint256 _maxRebaseBatchSize) external override onlyOwner {
+    maxRebaseBatchSize = _maxRebaseBatchSize;
   }
 
-  function setDex(address routerAddress) public onlyOwner {
+  function setDex(address routerAddress) external override onlyOwner {
     router = IDexRouter(routerAddress); 
-    pairAddress = IDexFactory(router.factory()).createPair(router.WETH(), address(this));
-    pair = IDexPair(pairAddress);
+    _pairAddress = IDexFactory(router.factory()).createPair(router.WETH(), address(this));
+    pair = IDexPair(_pairAddress);
   }
 
-  function setFeeReceivers(
-    address _autoLiquidityAddress,
+  function setAddresses(
     address _treasuryAddress,
-    address _insuranceAddress,
+    address _lrfAddress,
+    address _autoLiquidityAddress,
     address _burnAddress
-  ) external onlyOwner {
-    autoLiquidityAddress = _autoLiquidityAddress;
+  ) external override onlyOwner {
     treasuryAddress = _treasuryAddress;
-    insuranceAddress = _insuranceAddress;
+    lrfAddress = _lrfAddress;
+    autoLiquidityAddress = _autoLiquidityAddress;
     burnAddress = _burnAddress;
   }
 
-  function openTrade() external onlyOwner {
+  function setFees(
+    bool _isSellFee,
+    uint256 _treasuryFee,
+    uint256 _lrfFee,
+    uint256 _liquidityFee,
+    uint256 _burnFee
+  ) external override onlyOwner {
+
+    uint256 feeTotal = _treasuryFee
+      .add(_lrfFee)
+      .add(_liquidityFee)
+      .add(_burnFee);
+
+    Fee memory fee = Fee(_treasuryFee, _lrfFee, _liquidityFee, _burnFee, feeTotal);
+    
+    if (_isSellFee) {
+      require(feeTotal <= MAX_SELL_FEES, "Sell fees are too high");
+      _sellFees = fee;
+    }
+    
+    if (!_isSellFee) {
+      require(feeTotal <= MAX_BUY_FEES, "Buy fees are too high");
+      _buyFees = fee;
+    }
+  }  
+
+  function openTrade() external override onlyOwner {
     isOpen = true;
     
     // record rebase timestamps
+    lastAddLiquidityTime = block.timestamp;
     initRebaseStartTime = block.timestamp;
     lastRebaseTime = block.timestamp;
     lastEpoch = 0;
@@ -520,56 +564,40 @@ contract GuilderFi is IERC20, Ownable {
   /*
    * EXTERNAL GETTER FUNCTIONS
    */ 
-  function getLiquidityBacking(uint256 accuracy) public view returns (uint256) {
-    uint256 liquidityBalance = _gonBalances[pairAddress].div(_gonsPerFragment);
-    return accuracy.mul(liquidityBalance.mul(2)).div(getCirculatingSupply());
-  }
-
-  function getCirculatingSupply() public view returns (uint256) {
+  function getCirculatingSupply() public view override returns (uint256) {
     return (TOTAL_GONS.sub(_gonBalances[DEAD]).sub(_gonBalances[ZERO])).div(_gonsPerFragment);
   }
 
-  function checkFeeExempt(address _addr) external view returns (bool) {
+  function checkFeeExempt(address _addr) public view override returns (bool) {
     return _isFeeExempt[_addr];
   }
 
-  function isNotInSwap() external view returns (bool) {
+  function isNotInSwap() public view override returns (bool) {
     return !_inSwap;
   }
 
   /*
    * STANDARD ERC20 FUNCTIONS
    */ 
-  function totalSupply() external view override returns (uint256) {
+  function totalSupply() external view override(IGuilderFi, IERC20) returns (uint256) {
     return _totalSupply;
   }
    
-  function balanceOf(address who) external view override returns (uint256) {
+  function balanceOf(address who) external view override(IGuilderFi, IERC20) returns (uint256) {
     return _gonBalances[who].div(_gonsPerFragment);
   }
 
-  function name() public view returns (string memory) {
+  function name() public view override returns (string memory) {
     return _name;
   }
 
-  function symbol() public view returns (string memory) {
+  function symbol() public view override returns (string memory) {
     return _symbol;
   }
 
-  function decimals() public pure returns (uint8) {
+  function decimals() public pure override returns (uint8) {
     return DECIMALS;
   }
 
   receive() external payable {}
-
-  // Withdraw any locked ERC20 tokens sent to this contract
-  function withdrawLockedTokens(address _token, uint256 _amount) external onlyOwner {
-    IERC20(_token).transfer(msg.sender, _amount);
-  }
-
-  // Withdraw any locked ETH sent to this contract
-  function withdrawLockedETH(uint256 _amount) external onlyOwner returns (bool) {
-    (bool success, ) = payable(msg.sender).call{ value: _amount }("");
-    return success;
-  }
 }

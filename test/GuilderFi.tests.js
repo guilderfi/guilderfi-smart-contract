@@ -17,12 +17,12 @@ let dexPairAddress;
 
 let liquidityAddress;
 let treasuryAddress;
-let insuranceAddress;
+let lrfAddress;
 let burnAddress;
 
 let ownerAccount;
 let treasuryAccount;
-let insuranceAccount;
+let lrfAccount;
 let liqudityAccount;
 let account1;
 let account2;
@@ -67,7 +67,7 @@ function calculateInitialLP(tokenA, tokenB) {
 describe(`Testing ${TOKEN_NAME}..`, function () {
   before(async function () {
     // Set up accounts
-    [ownerAccount, treasuryAccount, insuranceAccount, liqudityAccount, account1, account2, account3, account4] = await ethers.getSigners();
+    [ownerAccount, treasuryAccount, lrfAccount, liqudityAccount, account1, account2, account3, account4] = await ethers.getSigners();
 
     print(`Deploying ${TOKEN_NAME} smart contract..`);
 
@@ -86,7 +86,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     // Set other global variables
     liquidityAddress = await token.autoLiquidityAddress();
     treasuryAddress = await token.treasuryAddress();
-    insuranceAddress = await token.insuranceAddress();
+    lrfAddress = await token.lrfAddress();
     burnAddress = await token.burnAddress();
   });
 
@@ -186,32 +186,53 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(await token.balanceOf(account1.address)).to.equal(addZeroes(900, DECIMALS));
   });
 
-  it("Rebase should increase each account balance by 0.00707%", async function () {
-    // move time forward 12 minutes
-    await ethers.provider.send("evm_increaseTime", [720 + 60]);
-    await ethers.provider.send("evm_mine");
+  it("Should apply buy fees when account3 buys shares from exchange", async function () {
+    print("Account3 buys 1000 tokens from exchange");
+    await dexRouter.connect(account3).swapETHForExactTokens(
+      addZeroes(1000, DECIMALS), // 1000 tokens
+      [await dexRouter.WETH(), token.address],
+      account3.address,
+      Math.floor(Date.now() / 1000) + 600, // deadline = 10 mins
+      { value: BigNumber.from("10000000000000000") } // 0.001 ETH
+    );
 
-    print("Manually trigger rebase");
-    await token.connect(treasuryAccount).rebase();
-
-    print("Account balances should increase by rebase rate");
-    expect(await token.balanceOf(account2.address)).to.equal(addZeroes(100, DECIMALS).mul(10000707).div(10000000));
-    expect(await token.balanceOf(account1.address)).to.equal(addZeroes(900, DECIMALS).mul(10000707).div(10000000));
-    expect(await token._lastEpoch()).to.equal(1);
-    expect(await token.pendingRebases()).to.equal(0);
+    print("Expect buy fees to be taken");
+    expect(await token.balanceOf(account3.address)).to.equal(addZeroes(870, DECIMALS));
+    expect(await token.balanceOf(token.address)).to.equal(addZeroes(80, DECIMALS));
+    expect(await token.balanceOf(liquidityAddress)).to.equal(addZeroes(50, DECIMALS));
   });
 
-  it("Rebase should increase each account balance by 0.00707%", async function () {
-    // move time forward 24 hours
-    await ethers.provider.send("evm_increaseTime", [84600 - 720 + 60]);
+  it("Should apply sell fees when account3 sells shares to exchange", async function () {
+    await token.connect(account3).approve(dexRouter.address, BigNumber.from("1000000000000000000000000000000000000"));
+    await token.connect(treasuryAccount).setAutoSwap(false);
+
+    print("Account3 sells 100 tokens to exchange");
+    await dexRouter.connect(account3).swapExactTokensForETHSupportingFeeOnTransferTokens(
+      addZeroes(100, DECIMALS), // 100 tokens,
+      0, // minimum ETH out
+      [token.address, await dexRouter.WETH()], // pair
+      account3.address, // recipient
+      Math.floor(Date.now() / 1000) + 600 // deadline = 10 mins
+    );
+
+    print("Expect sell fees to be taken");
+    expect(await token.balanceOf(account3.address)).to.equal(addZeroes(770, DECIMALS));
+    expect(await token.balanceOf(token.address)).to.equal(addZeroes(92, DECIMALS));
+    expect(await token.balanceOf(liquidityAddress)).to.equal(addZeroes(55, DECIMALS));
+  });
+
+  it("Rebase should increase each account balance by 0.016%", async function () {
+    // move time forward 12 minutes
+    await ethers.provider.send("evm_increaseTime", [720]);
     await ethers.provider.send("evm_mine");
 
     print("Manually trigger rebase");
     await token.connect(treasuryAccount).rebase();
 
     print("Account balances should increase by rebase rate");
-    expect(await token.balanceOf(account2.address)).to.equal(BigNumber.from("100290280253150351575")); // 100.29028
-    expect(await token._lastEpoch()).to.equal(41);
-    expect(await token.pendingRebases()).to.equal(79);
+    expect(await token.balanceOf(account2.address)).to.equal(addZeroes(100, DECIMALS).mul(10001600).div(10000000));
+    expect(await token.balanceOf(account1.address)).to.equal(addZeroes(900, DECIMALS).mul(10001600).div(10000000));
+    expect(await token.lastEpoch()).to.equal(1);
+    expect(await token.pendingRebases()).to.equal(0);
   });
 });
