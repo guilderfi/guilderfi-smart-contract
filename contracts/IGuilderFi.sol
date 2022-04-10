@@ -61,6 +61,31 @@ interface IGuilderFi {
   function checkFeeExempt(address _addr) external view returns (bool);
   function isNotInSwap() external view returns (bool);
 
+  // Rebase variables
+  function maxRebaseBatchSize() external view returns (uint256);
+  function pendingRebases() external view returns (uint256);
+  
+  // Addresses
+  function getTreasuryAddress() external view returns (address);
+  function getLrfAddress() external view returns (address);
+  function getAutoLiquidityAddress() external view returns (address);
+  function getBurnAddress() external view returns (address);
+
+  // Setting flags
+  function swapEnabled() external view returns (bool);
+  function autoRebaseEnabled() external view returns (bool);
+  function autoAddLiquidityEnabled() external view returns (bool);
+
+  // Date/time stamps
+  function initRebaseStartTime() external view returns (uint256);
+  function lastRebaseTime() external view returns (uint256);
+  function lastAddLiquidityTime() external view returns (uint256);
+  function lastEpoch() external view returns (uint256);
+
+  // Dex addresses
+  function getRouter() external view returns (address);
+  function getPair() external view returns (address);
+
   // Standard ERC20 functions
   function totalSupply() external view returns (uint256);
   function balanceOf(address who) external view returns (uint256);

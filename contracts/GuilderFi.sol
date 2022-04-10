@@ -41,14 +41,14 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
   uint256 private constant REBASE_FREQUENCY = 12 minutes;
   
   // REBASE VARIABLES
-  uint256 public maxRebaseBatchSize = 40; // 8 hours
-  uint256 public pendingRebases = 0;
+  uint256 public override maxRebaseBatchSize = 40; // 8 hours
+  uint256 public override pendingRebases = 0;
   
   // ADDRESSES
-  address public treasuryAddress = 0xdF6240E7f63cbFdb23e50D20270ECA8D457781B6; 
-  address public lrfAddress = 0x00E0B8c741E77fC0F877f6A4Ca372B878E08b89a;
-  address public autoLiquidityAddress = 0x6Ba7B06dB3D5F8eB11d25B0209Dc76517787173F;
-  address public burnAddress = DEAD;
+  address public _treasuryAddress = 0xdF6240E7f63cbFdb23e50D20270ECA8D457781B6; 
+  address public _lrfAddress = 0x00E0B8c741E77fC0F877f6A4Ca372B878E08b89a;
+  address public _autoLiquidityAddress = 0x6Ba7B06dB3D5F8eB11d25B0209Dc76517787173F;
+  address public _burnAddress = DEAD;
   
   // DEX ADDRESSES
   address private constant DEX_ROUTER_ADDRESS = 0x10ED43C718714eb63d5aA57B78B54704E256024E; // PancakeSwap BSC Mainnet
@@ -66,27 +66,26 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
   Fee private _sellFees = Fee(70, 50, 50, 0, 170);
 
   // FEES COLLECTED
-  uint256 public treasuryFeesCollected;
-  uint256 public lrfFeesCollected;
+  uint256 private _treasuryFeesCollected;
+  uint256 private _lrfFeesCollected;
 
   // SETTING FLAGS
-  bool public swapEnabled = true;
-  bool public autoRebaseEnabled = true;
-  bool public autoAddLiquidityEnabled = true;
+  bool public override swapEnabled = true;
+  bool public override autoRebaseEnabled = true;
+  bool public override autoAddLiquidityEnabled = true;
 
   // PRIVATE FLAGS
   bool private _inSwap = false;
 
   // EXCHANGE VARIABLES
-  address private _pairAddress;
-  IDexRouter public router;
-  IDexPair public pair;
+  IDexRouter private _router;
+  IDexPair private _pair;
   
   // DATE/TIME STAMPS
-  uint256 public initRebaseStartTime;
-  uint256 public lastRebaseTime;
-  uint256 public lastAddLiquidityTime;
-  uint256 public lastEpoch;
+  uint256 public override initRebaseStartTime;
+  uint256 public override lastRebaseTime;
+  uint256 public override lastAddLiquidityTime;
+  uint256 public override lastEpoch;
 
   // TOKEN SUPPLY VARIABLES
   uint256 private _totalSupply;
@@ -121,27 +120,27 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
   constructor() Ownable() {
 
-    // set up DEX router/pair
-    router = IDexRouter(DEX_ROUTER_ADDRESS); 
-    _pairAddress = IDexFactory(router.factory()).createPair(router.WETH(), address(this));
-    pair = IDexPair(_pairAddress);
+    // set up DEX _router/_pair
+    _router = IDexRouter(DEX_ROUTER_ADDRESS); 
+    address pairAddress = IDexFactory(_router.factory()).createPair(_router.WETH(), address(this));
+    _pair = IDexPair(address(pairAddress));
 
-    // set exchange router allowance
-    _allowedFragments[address(this)][address(router)] = type(uint256).max;
+    // set exchange _router allowance
+    _allowedFragments[address(this)][address(_router)] = type(uint256).max;
   
     // initialise total supply
     _totalSupply = INITIAL_FRAGMENTS_SUPPLY;
     _gonsPerFragment = TOTAL_GONS.div(_totalSupply);
     
     // exempt fees from contract + treasury
-    _isFeeExempt[treasuryAddress] = true;
+    _isFeeExempt[_treasuryAddress] = true;
     _isFeeExempt[address(this)] = true;
 
     // transfer ownership + total supply to treasury
-    _gonBalances[treasuryAddress] = TOTAL_GONS;
-    _transferOwnership(treasuryAddress);
+    _gonBalances[_treasuryAddress] = TOTAL_GONS;
+    _transferOwnership(_treasuryAddress);
 
-    emit Transfer(address(0x0), treasuryAddress, _totalSupply);
+    emit Transfer(address(0x0), _treasuryAddress, _totalSupply);
   }
 
   /*
@@ -183,7 +182,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     _gonsPerFragment = TOTAL_GONS.div(_totalSupply);
     lastRebaseTime = lastRebaseTime.add(times.mul(REBASE_FREQUENCY));
 
-    pair.sync();
+    _pair.sync();
 
     emit LogRebase(lastEpoch, _totalSupply);
   }
@@ -275,9 +274,9 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     return true;
   }
 
-  function takeFee(address, address recipient, uint256 gonAmount) internal returns (uint256) {
+  function takeFee(address sender, address recipient, uint256 gonAmount) internal returns (uint256) {
 
-    Fee storage fees = (recipient == _pairAddress) ? _sellFees : _buyFees;
+    Fee storage fees = (recipient == address(_pair)) ? _sellFees : _buyFees;
 
     uint256 burnAmount = gonAmount.div(FEE_DENOMINATOR).mul(fees.burnFee);
     uint256 treasuryAmount = gonAmount.div(FEE_DENOMINATOR).mul(fees.treasuryFee);
@@ -286,28 +285,28 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     uint256 totalFeeAmount = burnAmount + treasuryAmount + lrfAmount + liquidityAmount;
      
     // burn 
-    _gonBalances[burnAddress] = _gonBalances[burnAddress].add(burnAmount);
+    _gonBalances[_burnAddress] = _gonBalances[_burnAddress].add(burnAmount);
 
     // add treasury fees to smart contract
     _gonBalances[address(this)] = _gonBalances[address(this)].add(treasuryAmount);
-    treasuryFeesCollected = treasuryFeesCollected.add(treasuryAmount);
+    _treasuryFeesCollected = _treasuryFeesCollected.add(treasuryAmount);
     
     // add lrf fees to smart contract
     _gonBalances[address(this)] = _gonBalances[address(this)].add(lrfAmount);
-    lrfFeesCollected = lrfFeesCollected.add(lrfAmount);
+    _lrfFeesCollected = _lrfFeesCollected.add(lrfAmount);
 
     // add liquidity fees to liquidity address
-    _gonBalances[autoLiquidityAddress] = _gonBalances[autoLiquidityAddress].add(liquidityAmount);
+    _gonBalances[_autoLiquidityAddress] = _gonBalances[_autoLiquidityAddress].add(liquidityAmount);
     
-    // emit Transfer(sender, address(this), totalFeeAmount.div(_gonsPerFragment));
+    emit Transfer(sender, address(this), totalFeeAmount.div(_gonsPerFragment));
     return gonAmount.sub(totalFeeAmount);
   }
 
   function addLiquidity() internal swapping {
     // transfer all tokens from liquidity account to contract
-    uint256 autoLiquidityAmount = _gonBalances[autoLiquidityAddress].div(_gonsPerFragment);
-    _gonBalances[address(this)] = _gonBalances[address(this)].add(_gonBalances[autoLiquidityAddress]);
-    _gonBalances[autoLiquidityAddress] = 0;
+    uint256 autoLiquidityAmount = _gonBalances[_autoLiquidityAddress].div(_gonsPerFragment);
+    _gonBalances[address(this)] = _gonBalances[address(this)].add(_gonBalances[_autoLiquidityAddress]);
+    _gonBalances[_autoLiquidityAddress] = 0;
 
     // calculate 50/50 split
     uint256 amountToLiquify = autoLiquidityAmount.div(2);
@@ -319,12 +318,12 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     address[] memory path = new address[](2);
     path[0] = address(this);
-    path[1] = router.WETH();
+    path[1] = _router.WETH();
 
     uint256 balanceBefore = address(this).balance;
 
     // swap tokens for ETH
-    router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+    _router.swapExactTokensForETHSupportingFeeOnTransferTokens(
       amountToSwap,
       0,
       path,
@@ -336,12 +335,12 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     // add tokens + ETH to liquidity pool
     if (amountToLiquify > 0&&amountETHLiquidity > 0) {
-      router.addLiquidityETH{value: amountETHLiquidity}(
+      _router.addLiquidityETH{value: amountETHLiquidity}(
         address(this),
         amountToLiquify,
         0,
         0,
-        autoLiquidityAddress,
+        _autoLiquidityAddress,
         block.timestamp
       );
     }
@@ -351,7 +350,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
   function swapBack() internal swapping {
 
-    uint256 totalGonFeesCollected = treasuryFeesCollected.add(lrfFeesCollected);
+    uint256 totalGonFeesCollected = _treasuryFeesCollected.add(_lrfFeesCollected);
     uint256 amountToSwap = _gonBalances[address(this)].div(_gonsPerFragment);
 
     _gonBalances[address(this)] = 0;
@@ -364,10 +363,10 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     address[] memory path = new address[](2);
     path[0] = address(this);
-    path[1] = router.WETH();
+    path[1] = _router.WETH();
 
     // swap all tokens in contract for ETH
-    router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+    _router.swapExactTokensForETHSupportingFeeOnTransferTokens(
       amountToSwap,
       0,
       path,
@@ -376,17 +375,17 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     );
 
     uint256 amountETH = address(this).balance.sub(balanceBefore);
-    uint256 treasuryETH = amountETH.mul(treasuryFeesCollected).div(totalGonFeesCollected);
+    uint256 treasuryETH = amountETH.mul(_treasuryFeesCollected).div(totalGonFeesCollected);
     uint256 lrfETH = amountETH.sub(treasuryETH);
 
-    treasuryFeesCollected = 0;
-    lrfFeesCollected = 0;
+    _treasuryFeesCollected = 0;
+    _lrfFeesCollected = 0;
     
     // send eth to treasury
-    (bool success, ) = payable(treasuryAddress).call{ value: treasuryETH }("");
+    (bool success, ) = payable(_treasuryAddress).call{ value: treasuryETH }("");
 
     // send eth to lrf
-    (success, ) = payable(lrfAddress).call{ value: lrfETH }("");
+    (success, ) = payable(_lrfAddress).call{ value: lrfETH }("");
   }
 
   /*
@@ -394,7 +393,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
    */ 
   function shouldTakeFee(address from, address to) internal view returns (bool) {
     return 
-      (_pairAddress == from || _pairAddress == to) &&
+      (address(_pair) == from || address(_pair) == to) &&
       !_isFeeExempt[from];
   }
 
@@ -403,7 +402,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
       autoRebaseEnabled &&
       isOpen &&
       (_totalSupply < MAX_SUPPLY) &&
-      msg.sender != _pairAddress  &&
+      msg.sender != address(_pair)  &&
       !_inSwap &&
       block.timestamp >= (lastRebaseTime + REBASE_FREQUENCY);
   }
@@ -412,7 +411,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     return
       autoAddLiquidityEnabled && 
       !_inSwap && 
-      msg.sender != _pairAddress &&
+      msg.sender != address(_pair) &&
       block.timestamp >= (lastAddLiquidityTime + 2 days);
   }
 
@@ -420,7 +419,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     return 
       !_inSwap &&
       swapEnabled &&
-      msg.sender != _pairAddress; 
+      msg.sender != address(_pair); 
   }
 
   /*
@@ -467,7 +466,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
   }
 
   function manualSync() override external {
-    IDexPair(_pairAddress).sync();
+    IDexPair(address(_pair)).sync();
   }
 
   /*
@@ -508,21 +507,21 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
   }
 
   function setDex(address routerAddress) external override onlyOwner {
-    router = IDexRouter(routerAddress); 
-    _pairAddress = IDexFactory(router.factory()).createPair(router.WETH(), address(this));
-    pair = IDexPair(_pairAddress);
+    _router = IDexRouter(routerAddress); 
+    address pairAddress = IDexFactory(_router.factory()).createPair(_router.WETH(), address(this));
+    _pair = IDexPair(address(pairAddress));
   }
 
   function setAddresses(
-    address _treasuryAddress,
-    address _lrfAddress,
-    address _autoLiquidityAddress,
-    address _burnAddress
+    address treasuryAddress,
+    address lrfAddress,
+    address autoLiquidityAddress,
+    address burnAddress
   ) external override onlyOwner {
-    treasuryAddress = _treasuryAddress;
-    lrfAddress = _lrfAddress;
-    autoLiquidityAddress = _autoLiquidityAddress;
-    burnAddress = _burnAddress;
+    _treasuryAddress = treasuryAddress;
+    _lrfAddress = lrfAddress;
+    _autoLiquidityAddress = autoLiquidityAddress;
+    _burnAddress = burnAddress;
   }
 
   function setFees(
@@ -567,15 +566,31 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
   function getCirculatingSupply() public view override returns (uint256) {
     return (TOTAL_GONS.sub(_gonBalances[DEAD]).sub(_gonBalances[ZERO])).div(_gonsPerFragment);
   }
-
   function checkFeeExempt(address _addr) public view override returns (bool) {
     return _isFeeExempt[_addr];
   }
-
   function isNotInSwap() public view override returns (bool) {
     return !_inSwap;
   }
-
+  function getTreasuryAddress() public view override returns (address) {
+    return _treasuryAddress;
+  }
+  function getLrfAddress() public view override returns (address) {
+    return _lrfAddress;
+  }
+  function getAutoLiquidityAddress() public view override returns (address) {
+    return _autoLiquidityAddress;
+  }
+  function getBurnAddress() public view override returns (address) {
+    return _burnAddress;
+  }
+  function getRouter() public view override returns (address) {
+    return address(_router);
+  }
+  function getPair() public view override returns (address) {
+    return address(_pair);
+  }
+  
   /*
    * STANDARD ERC20 FUNCTIONS
    */ 
