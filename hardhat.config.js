@@ -2,6 +2,7 @@ const path = require("path");
 const { task } = require("hardhat/config");
 const fs = require("fs");
 const { merge } = require("sol-merger");
+const { parse } = require("csv-parse/sync");
 
 require("dotenv").config();
 require("@nomiclabs/hardhat-etherscan");
@@ -11,13 +12,14 @@ require("solidity-coverage");
 
 const TOKEN_NAME = "GuilderFi";
 
-// fetch accounts from text file (accounts.txt) (each line should be a private key)
+// fetch accounts from csv file
 const accounts = [];
-fs.readFileSync("./accounts.txt", "utf-8")
-  .split(/\r?\n/)
-  .forEach(function (line) {
-    accounts.push({ privateKey: line, balance: "100000000000000000000" });
-  });
+const inputCsvData = fs.readFileSync("./accounts.csv", "utf-8");
+const records = parse(inputCsvData, { columns: true });
+for (let i = 0; i < records.length; i++) {
+  const row = records[i];
+  accounts.push({ privateKey: row.private_key, balance: "100000000000000000000" });
+}
 
 task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
   const accounts = await hre.ethers.getSigners();
@@ -78,7 +80,7 @@ module.exports = {
       chainId: 23,
       accounts,
       forking: {
-        url: process.env.FORK_URL,
+        url: "https://data-seed-prebsc-1-s1.binance.org:8545", // process.env.FORK_URL,
       },
     },
     localhost: {

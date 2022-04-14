@@ -16,5 +16,5 @@ output
 *.log
 
 #Other
-airdrop.csv
+*.csv
 .vscode

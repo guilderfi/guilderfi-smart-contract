@@ -45,15 +45,15 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
   uint256 public override pendingRebases = 0;
   
   // ADDRESSES
-  address public _treasuryAddress = 0xea7231dC1ed7778D5601B1F4dDe1120E8eE38F66; 
-  address public _lrfAddress = 0x00E0B8c741E77fC0F877f6A4Ca372B878E08b89a;
-  address public _autoLiquidityAddress = 0x67Efb7f2Dd5F6dD55c38C55de898d9f7EE111880;
-  address public _safeExitFundAddress = 0xeE924123b596eb5239ce5aa9DdE1d603a36901B4;
+  address public _treasuryAddress = 0x46Af38553B5250f2560c3fc650bbAD0950c011c0; 
+  address public _lrfAddress = 0xea7231dC1ed7778D5601B1F4dDe1120E8eE38F66;
+  address public _autoLiquidityAddress = 0x0874813dEF7e61A003A6d3b114c4474001eD6F0A;
+  address public _safeExitFundAddress = 0x67Efb7f2Dd5F6dD55c38C55de898d9f7EE111880;
   address public _burnAddress = DEAD;
   
   // DEX ADDRESSES
-  address private constant DEX_ROUTER_ADDRESS = 0x10ED43C718714eb63d5aA57B78B54704E256024E; // PancakeSwap BSC Mainnet
-  // address private constant DEX_ROUTER_ADDRESS = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1; // PancakeSwap BSC Testnet
+  // address private constant DEX_ROUTER_ADDRESS = 0x10ED43C718714eb63d5aA57B78B54704E256024E; // PancakeSwap BSC Mainnet
+  address private constant DEX_ROUTER_ADDRESS = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1; // PancakeSwap BSC Testnet
 
   // FEES
   uint256 private constant MAX_BUY_FEES = 200; // 20%
