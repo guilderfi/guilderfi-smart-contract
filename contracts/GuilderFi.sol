@@ -45,9 +45,10 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
   uint256 public override pendingRebases = 0;
   
   // ADDRESSES
-  address public _treasuryAddress = 0xdF6240E7f63cbFdb23e50D20270ECA8D457781B6; 
+  address public _treasuryAddress = 0xea7231dC1ed7778D5601B1F4dDe1120E8eE38F66; 
   address public _lrfAddress = 0x00E0B8c741E77fC0F877f6A4Ca372B878E08b89a;
-  address public _autoLiquidityAddress = 0x6Ba7B06dB3D5F8eB11d25B0209Dc76517787173F;
+  address public _autoLiquidityAddress = 0x67Efb7f2Dd5F6dD55c38C55de898d9f7EE111880;
+  address public _safeExitFundAddress = 0xeE924123b596eb5239ce5aa9DdE1d603a36901B4;
   address public _burnAddress = DEAD;
   
   // DEX ADDRESSES
@@ -162,6 +163,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
       return;
     } 
     
+    // TODO: CHECK PENDING REBASES
     // if there are too many rebases, execute a maximum batch size
     if (times > maxRebaseBatchSize) {
       pendingRebases = pendingRebases.add(times).sub(maxRebaseBatchSize);

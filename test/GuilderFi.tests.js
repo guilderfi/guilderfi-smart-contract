@@ -24,6 +24,7 @@ let ownerAccount;
 let treasuryAccount;
 let lrfAccount;
 let liqudityAccount;
+let safeExitFundAccount;
 let account1;
 let account2;
 let account3;
@@ -67,7 +68,8 @@ function calculateInitialLP(tokenA, tokenB) {
 describe(`Testing ${TOKEN_NAME}..`, function () {
   before(async function () {
     // Set up accounts
-    [ownerAccount, treasuryAccount, lrfAccount, liqudityAccount, account1, account2, account3, account4] = await ethers.getSigners();
+    [ownerAccount, treasuryAccount, lrfAccount, liqudityAccount, safeExitFundAccount, account1, account2, account3, account4] =
+      await ethers.getSigners();
 
     print(`Deploying ${TOKEN_NAME} smart contract..`);
 
@@ -76,12 +78,13 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     token = await Token.deploy();
     await token.deployed();
 
+    print(`Smart contract address: ${token.address}`);
+
     // Set dex variables
     dexRouterAddress = await token.getRouter();
     dexRouter = await ethers.getContractAt("IDexRouter", dexRouterAddress);
     dexFactory = await ethers.getContractAt("IDexFactory", await dexRouter.factory());
     dexPairAddress = await token.getPair(); // await dexFactory.getPair(token.address, await dexRouter.WETH());
-    console.log(dexPairAddress);
     dexPair = await ethers.getContractAt("IDexPair", dexPairAddress);
 
     // Set other global variables
