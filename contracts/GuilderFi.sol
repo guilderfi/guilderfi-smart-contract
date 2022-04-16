@@ -99,7 +99,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
   mapping(address => bool) public blacklist;
 
   // PRE-SALE FLAG
-  bool public isOpen = false;
+  bool public override isOpen = false;
   mapping(address => bool) private _allowPreSaleTransfer;
 
   // MODIFIERS
@@ -148,7 +148,8 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
    * REBASE FUNCTIONS
    */ 
   function rebase() public override {
-    
+    require(isOpen, "Trading is not open yet");
+
     if (_inSwap || !isOpen) {
       return;
     }

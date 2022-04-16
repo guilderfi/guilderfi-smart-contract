@@ -57,6 +57,7 @@ interface IGuilderFi {
   function allowPreSaleTransfer(address _addr, bool _flag) external;
 
   // Read only functions
+  function isOpen() external view returns (bool);
   function getCirculatingSupply() external view returns (uint256);
   function checkFeeExempt(address _addr) external view returns (bool);
   function isNotInSwap() external view returns (bool);
