@@ -5,7 +5,11 @@ pragma solidity 0.8.4;
 interface IGuilderFi {
   
   // Events
-  event LogRebase(uint256 indexed epoch, uint256 totalSupply);
+  event LogRebase(
+    uint256 indexed epoch,
+    uint256 totalSupply,
+    uint256 pendingRebases
+  );
 
   // Fee struct
   struct Fee {
@@ -19,7 +23,9 @@ interface IGuilderFi {
   // Rebase functions
   function rebase() external;
   function getRebaseRate() external view returns (uint256);
-
+  function pendingRebases() external view returns (uint256);
+  function maxRebaseBatchSize() external view returns (uint256);
+  
   // Transfer
   function transfer(address to, uint256 value) external returns (bool);
   function transferFrom(address from, address to, uint256 value) external returns (bool);
@@ -62,10 +68,6 @@ interface IGuilderFi {
   function checkFeeExempt(address _addr) external view returns (bool);
   function isNotInSwap() external view returns (bool);
 
-  // Rebase variables
-  function maxRebaseBatchSize() external view returns (uint256);
-  function pendingRebases() external view returns (uint256);
-  
   // Addresses
   function getTreasuryAddress() external view returns (address);
   function getLrfAddress() external view returns (address);

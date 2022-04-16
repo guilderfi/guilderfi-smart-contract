@@ -31,18 +31,17 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
   uint256 private constant TOTAL_GONS = MAX_UINT256 - (MAX_UINT256 % INITIAL_FRAGMENTS_SUPPLY);
 
   // REBASE SETTINGS
-  uint256 private constant YEAR1_REBASE_RATE = 1600; // 0.01600 %
-  uint256 private constant YEAR2_REBASE_RATE = 1440; // 0.01440 %
-  uint256 private constant YEAR3_REBASE_RATE = 1280; // 0.01280 %
-  uint256 private constant YEAR4_REBASE_RATE = 1130; // 0.01130 %
-  uint256 private constant YEAR5_REBASE_RATE = 970; // 0.00970 %
-  uint256 private constant YEAR6_REBASE_RATE = 286; // 0.00286 %
-  uint8   private constant REBASE_RATE_DECIMALS = 7;
+  uint256 private constant YEAR1_REBASE_RATE = 160309122470000; // 0.0160309122470000 %
+  uint256 private constant YEAR2_REBASE_RATE = 144501813571063; // 0.0144501813571063 %
+  uint256 private constant YEAR3_REBASE_RATE = 128715080592867; // 0.0128715080592867 %
+  uint256 private constant YEAR4_REBASE_RATE = 112969085762193; // 0.0112969085762193 %
+  uint256 private constant YEAR5_REBASE_RATE = 97303671485527;  // 0.0097303671485527 %
+  uint256 private constant YEAR6_REBASE_RATE = 34322491203609;  // 0.0034322491203609 %
+  uint8   private constant REBASE_RATE_DECIMALS = 18;
   uint256 private constant REBASE_FREQUENCY = 12 minutes;
   
   // REBASE VARIABLES
   uint256 public override maxRebaseBatchSize = 40; // 8 hours
-  uint256 public override pendingRebases = 0;
   
   // ADDRESSES
   address public _treasuryAddress = 0x46Af38553B5250f2560c3fc650bbAD0950c011c0; 
@@ -153,24 +152,18 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     if (_inSwap || !isOpen) {
       return;
     }
-
-    uint256 rebaseRate = getRebaseRate();
     
     // work out how many rebases to perform
     uint256 deltaTime = block.timestamp - lastRebaseTime;
     uint256 times = deltaTime.div(REBASE_FREQUENCY);
 
-    if (times == 0) {
-      return;
-    } 
-    
-    // TODO: CHECK PENDING REBASES
-    // if there are too many rebases, execute a maximum batch size
+    require(times > 0, "No pending rebases to perform");
+
+    uint256 rebaseRate = getRebaseRate();
+
+    // if there are too many pending rebases, execute a maximum batch size
     if (times > maxRebaseBatchSize) {
-      pendingRebases = pendingRebases.add(times).sub(maxRebaseBatchSize);
       times = maxRebaseBatchSize;
-    } else {
-      pendingRebases = 0;
     }
 
     lastEpoch = lastEpoch.add(times);
@@ -187,7 +180,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     _pair.sync();
 
-    emit LogRebase(lastEpoch, _totalSupply);
+    emit LogRebase(lastEpoch, _totalSupply, pendingRebases());
   }
 
   function getRebaseRate() public view override returns (uint256) {
@@ -208,6 +201,11 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     } else {
       return YEAR6_REBASE_RATE;
     }
+  }
+
+  function pendingRebases() public view override returns (uint256) {
+    uint256 timeSinceLastRebase = block.timestamp - lastRebaseTime;
+    return timeSinceLastRebase.div(REBASE_FREQUENCY);
   }
 
   function transfer(address to, uint256 value) external
@@ -258,6 +256,9 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     if (shouldSwapBack()) {
       swapBack();
     }
+
+    // check BBP ratio
+    // if over 100%> sell NPlus1
 
     uint256 gonAmount = amount.mul(_gonsPerFragment);
     uint256 gonAmountReceived = gonAmount;
@@ -415,7 +416,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
       autoAddLiquidityEnabled && 
       !_inSwap && 
       msg.sender != address(_pair) &&
-      block.timestamp >= (lastAddLiquidityTime + 2 days);
+      block.timestamp >= (lastAddLiquidityTime + 2 days); // TODO: make 
   }
 
   function shouldSwapBack() internal view returns (bool) {

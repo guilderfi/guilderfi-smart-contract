@@ -3,32 +3,21 @@ const { ethers } = require("hardhat");
 const { BigNumber } = require("ethers");
 const clc = require("cli-color");
 
-const DEAD = "0x000000000000000000000000000000000000dEaD";
-const DEBUG = true;
+const DEBUG = false;
 const TOKEN_NAME = "GuilderFi";
 const DECIMALS = 18;
 
 let token;
 let dexRouter;
 let dexRouterAddress;
-let dexFactory;
 let dexPair;
 let dexPairAddress;
 
 let liquidityAddress;
-let treasuryAddress;
-let lrfAddress;
-let burnAddress;
-
-let ownerAccount;
 let treasuryAccount;
-let lrfAccount;
-let liqudityAccount;
-let safeExitFundAccount;
 let account1;
 let account2;
 let account3;
-let account4;
 
 function addZeroes(num, zeroes) {
   return BigNumber.from(num).mul(BigNumber.from(10).pow(zeroes));
@@ -68,8 +57,7 @@ function calculateInitialLP(tokenA, tokenB) {
 describe(`Testing ${TOKEN_NAME}..`, function () {
   before(async function () {
     // Set up accounts
-    [ownerAccount, treasuryAccount, lrfAccount, liqudityAccount, safeExitFundAccount, account1, account2, account3, account4] =
-      await ethers.getSigners();
+    [, treasuryAccount, , , , account1, account2, account3] = await ethers.getSigners();
 
     print(`Deploying ${TOKEN_NAME} smart contract..`);
 
@@ -83,15 +71,11 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     // Set dex variables
     dexRouterAddress = await token.getRouter();
     dexRouter = await ethers.getContractAt("IDexRouter", dexRouterAddress);
-    dexFactory = await ethers.getContractAt("IDexFactory", await dexRouter.factory());
-    dexPairAddress = await token.getPair(); // await dexFactory.getPair(token.address, await dexRouter.WETH());
+    dexPairAddress = await token.getPair();
     dexPair = await ethers.getContractAt("IDexPair", dexPairAddress);
 
     // Set other global variables
     liquidityAddress = await token.getAutoLiquidityAddress();
-    treasuryAddress = await token.getTreasuryAddress();
-    lrfAddress = await token.getLrfAddress();
-    burnAddress = await token.getBurnAddress();
   });
 
   it("Should mint 100m tokens", async function () {
@@ -225,20 +209,58 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(await token.balanceOf(liquidityAddress)).to.equal(addZeroes(55, DECIMALS));
   });
 
-  /*
-  it("Rebase should increase each account balance by 0.016%", async function () {
+  it("Rebase should increase each account balance by 0.016% after 12 minutes", async function () {
     // move time forward 12 minutes
     await ethers.provider.send("evm_increaseTime", [720]);
     await ethers.provider.send("evm_mine");
 
+    expect(await token.pendingRebases()).to.equal(1);
     print("Manually trigger rebase");
     await token.connect(treasuryAccount).rebase();
 
     print("Account balances should increase by rebase rate");
-    expect(await token.balanceOf(account2.address)).to.equal(addZeroes(100, DECIMALS).mul(10001600).div(10000000));
-    expect(await token.balanceOf(account1.address)).to.equal(addZeroes(900, DECIMALS).mul(10001600).div(10000000));
+    expect(await token.balanceOf(account2.address)).to.equal(BigNumber.from("100016030912247000000"));
+    expect(await token.balanceOf(account1.address)).to.equal(BigNumber.from("900144278210223000000"));
     expect(await token.lastEpoch()).to.equal(1);
     expect(await token.pendingRebases()).to.equal(0);
   });
-  */
+
+  it("Rebase should perform rebases in max batch sizes", async function () {
+    // move time forward by 100 rebases)
+    await ethers.provider.send("evm_increaseTime", [720 * 100]);
+    await ethers.provider.send("evm_mine");
+
+    expect(await token.pendingRebases()).to.equal(100);
+    print("Manually trigger rebase");
+    await token.connect(treasuryAccount).rebase();
+
+    print("Account balances should increase by rebase rate");
+    expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("100659379119725000000"), 1000000);
+    expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("905934412077523000000"), 1000000);
+    expect(await token.lastEpoch()).to.equal(41);
+    expect(await token.pendingRebases()).to.equal(60);
+
+    await token.connect(treasuryAccount).rebase();
+    expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("101306865632955000000"), 2500000);
+    expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("911761790696595000000"), 2500000);
+    expect(await token.lastEpoch()).to.equal(81);
+    expect(await token.pendingRebases()).to.equal(20);
+
+    await token.connect(treasuryAccount).rebase();
+    expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("101632169066129000000"), 5000000);
+    expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("914689521595163000000"), 5000000);
+    expect(await token.lastEpoch()).to.equal(101);
+    expect(await token.pendingRebases()).to.equal(0);
+
+    try {
+      await token.connect(treasuryAccount).rebase();
+    } catch (error) {
+      expect(error.message).to.contain("No pending rebases");
+    }
+
+    expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("101632169066129000000"), 5000000);
+    expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("914689521595163000000"), 5000000);
+    expect(await token.lastEpoch()).to.equal(101);
+    expect(await token.pendingRebases()).to.equal(0);
+  });
 });
