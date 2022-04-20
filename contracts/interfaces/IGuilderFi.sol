@@ -48,10 +48,11 @@ interface IGuilderFi {
     function setLrfFrequency(uint256 _frequency) external;
     function setSwapFrequency(uint256 _frequency) external;
     function setAddresses(
-        address _autoLiquidityAddress,
-        address _treasuryAddress,
-        address _lrfAddress,
-        address _burnAddress
+        address treasuryAddress,
+        address lrfAddress,
+        address autoLiquidityAddress,
+        address safeExitFundAddress,
+        address burnAddress
     ) external;
     function setFees(
         bool _isSellFee,
@@ -77,6 +78,7 @@ interface IGuilderFi {
     function getTreasuryAddress() external view returns (address);
     function getLrfAddress() external view returns (address);
     function getAutoLiquidityAddress() external view returns (address);
+    function getSafeExitFundAddress() external view returns (address);
     function getBurnAddress() external view returns (address);
 
     // Setting flags

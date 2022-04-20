@@ -52,12 +52,8 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     uint256 public override maxRebaseBatchSize = 40; // 8 hours
     
     // ADDRESSES
-    address public _treasuryAddress = 0x46Af38553B5250f2560c3fc650bbAD0950c011c0; 
-    // TODO - remove the below addresses
-    address public _lrfAddress = 0xea7231dC1ed7778D5601B1F4dDe1120E8eE38F66;
-    address public _autoLiquidityAddress = 0x0874813dEF7e61A003A6d3b114c4474001eD6F0A;
-    address public _safeExitFundAddress = 0x67Efb7f2Dd5F6dD55c38C55de898d9f7EE111880;
-    address public _burnAddress = DEAD;
+    address internal _treasuryAddress = 0x46Af38553B5250f2560c3fc650bbAD0950c011c0; 
+    address internal _burnAddress = DEAD;
 
     // OTHER CONTRACTS
     ILiquidityReliefFund public lrf;
@@ -324,16 +320,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         }
     }
 
-    function executeLrf() internal swapping {
-        lrf.execute();
-        lastLrfExecutionTime = block.timestamp;
-    }
-
-    function executeAutoLiquidityEngine() internal swapping {
-        autoLiquidityEngine.execute();
-        lastAddLiquidityTime = block.timestamp;
-    }
-
     function takeFee(address sender, address recipient, uint256 gonAmount) internal returns (uint256) {
 
         Fee storage fees = (recipient == address(_pair)) ? _sellFees : _buyFees;
@@ -365,6 +351,16 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
         emit Transfer(sender, address(this), totalFeeAmount.div(_gonsPerFragment));
         return gonAmount.sub(totalFeeAmount);
+    }
+    
+    function executeLrf() internal swapping {
+        lrf.execute();
+        lastLrfExecutionTime = block.timestamp;
+    }
+
+    function executeAutoLiquidityEngine() internal swapping {
+        autoLiquidityEngine.execute();
+        lastAddLiquidityTime = block.timestamp;
     }
 
     function swapBack() internal swapping {
@@ -560,11 +556,13 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         address treasuryAddress,
         address lrfAddress,
         address autoLiquidityAddress,
+        address safeExitFundAddress,
         address burnAddress
     ) external override onlyOwner {
         _treasuryAddress = treasuryAddress;
-        _lrfAddress = lrfAddress;
-        _autoLiquidityAddress = autoLiquidityAddress;
+        lrf = ILiquidityReliefFund(lrfAddress);
+        autoLiquidityEngine = IAutoLiquidityEngine(autoLiquidityAddress);
+        safeExitFund = ISafeExitFund(safeExitFundAddress);
         _burnAddress = burnAddress;
     }
 
@@ -624,10 +622,13 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         return _treasuryAddress;
     }
     function getLrfAddress() public view override returns (address) {
-        return _lrfAddress;
+        return address(lrf);
     }
     function getAutoLiquidityAddress() public view override returns (address) {
-        return _autoLiquidityAddress;
+        return address(autoLiquidityEngine);
+    }
+    function getSafeExitFundAddress() public view override returns (address) {
+        return address(safeExitFund);
     }
     function getBurnAddress() public view override returns (address) {
         return _burnAddress;
