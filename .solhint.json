@@ -9,6 +9,7 @@
     "max-states-count": ["warn", 100],
     "max-line-length": ["warn", 150],
     "indent": ["warn", 4],
-    "avoid-low-level-calls": "off"
+    "avoid-low-level-calls": "off",
+    "no-empty-blocks": "off"
   }
 }

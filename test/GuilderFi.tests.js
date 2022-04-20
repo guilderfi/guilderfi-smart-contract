@@ -3,7 +3,6 @@ const { ethers } = require("hardhat");
 const { BigNumber } = require("ethers");
 const clc = require("cli-color");
 
-const DEBUG = false;
 const TOKEN_NAME = "GuilderFi";
 const DECIMALS = 18;
 
@@ -14,7 +13,9 @@ let dexPair;
 let dexPairAddress;
 
 let liquidityAddress;
+let owner;
 let treasuryAccount;
+let lrfContract;
 let account1;
 let account2;
 let account3;
@@ -24,12 +25,61 @@ function addZeroes(num, zeroes) {
 }
 
 function print(msg) {
-  if (DEBUG) console.log(clc.xterm(8)("      " + msg));
+  console.log(clc.xterm(8)("      " + msg));
 }
+
+/*
+async function printStatus() {
+  const treasuryBalance = await ethers.provider.getBalance(treasuryAccount.address);
+  const lrfBalance = await ethers.provider.getBalance(lrfContract.address);
+  const lrfTokenBalance = await token.balanceOf(lrfContract.address);
+  const feesCollected = await token.balanceOf(token.address);
+  const { ethReserves, tokenReserves } = await getLiquidityReserves();
+  const liquidityTokens = await token.balanceOf(liquidityAddress);
+  const backedLiquidity = BigNumber.from("1000000000000000000")
+    .mul(treasuryBalance.add(lrfBalance))
+    .div(ethReserves.mul(BigNumber.from("10000000000000000")));
+
+  console.log();
+  console.log(`Treasury - eth:   ${ethers.utils.formatEther(treasuryBalance, { comify: true })}`);
+  console.log(`LRF - eth:        ${ethers.utils.formatEther(lrfBalance, { comify: true })}`);
+  console.log(`LRF - tokens:     ${ethers.utils.formatEther(lrfTokenBalance, { comify: true })}`);
+  console.log(`Total assets:     ${ethers.utils.formatEther(lrfBalance.add(treasuryBalance), { comify: true })}`);
+  console.log();
+  console.log(`LP - eth:         ${ethers.utils.formatEther(ethReserves, { comify: true })}`);
+  console.log(`LP - tokens:      ${ethers.utils.formatEther(tokenReserves, { comify: true })}`);
+  console.log(`Backed liquidity: ${backedLiquidity}%`);
+  console.log();
+  console.log(`Token fees coll:  ${ethers.utils.formatEther(feesCollected, { comify: true })}`);
+  console.log(`Liquidity tokens: ${ethers.utils.formatEther(liquidityTokens, { comify: true })}`);
+  console.log();
+}
+*/
 
 async function transferTokens(from, to, amount) {
   const transaction = await token.connect(from).transfer(to.address, amount);
   await transaction.wait();
+}
+
+async function getLiquidityReserves() {
+  let returnVal;
+  const reserves = await dexPair.getReserves();
+
+  // Check which token (0/1) is eth vs token
+  if ((await dexPair.token0()) === token.address) {
+    returnVal = {
+      tokenReserves: reserves.reserve0,
+      ethReserves: reserves.reserve1,
+    };
+  } else {
+    returnVal = {
+      tokenReserves: reserves.reserve1,
+      ethReserves: reserves.reserve0,
+    };
+  }
+
+  returnVal.tokenPrice = returnVal.ethReserves.div(returnVal.tokenReserves);
+  return returnVal;
 }
 
 function calculateInitialLP(tokenA, tokenB) {
@@ -57,7 +107,7 @@ function calculateInitialLP(tokenA, tokenB) {
 describe(`Testing ${TOKEN_NAME}..`, function () {
   before(async function () {
     // Set up accounts
-    [, treasuryAccount, , , , account1, account2, account3] = await ethers.getSigners();
+    [owner, treasuryAccount, , , , account1, account2, account3] = await ethers.getSigners();
 
     print(`Deploying ${TOKEN_NAME} smart contract..`);
 
@@ -76,43 +126,44 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
     // Set other global variables
     liquidityAddress = await token.getAutoLiquidityAddress();
+
+    // LRF
+    lrfContract = await ethers.getContractAt("LiquidityReliefFund", await token.lrf());
+
+    const tx = await owner.sendTransaction({
+      to: lrfContract.address,
+      value: ethers.utils.parseEther("1.0"), // Sends exactly 1.0 ether
+    });
+    await tx.wait();
+
+    transferTokens(treasuryAccount, lrfContract, addZeroes(10000000, 18));
   });
 
   it("Should mint 100m tokens", async function () {
     // expected total supply = 100m (18 decimal places)
     const expectedTotalSupply = addZeroes("100000000", DECIMALS);
-
-    print("Treasury balance should be 100m tokens");
     expect(await token.balanceOf(treasuryAccount.address)).to.equal(expectedTotalSupply);
-
-    print("Smart contract total supply should be 100m tokens");
     expect(await token.totalSupply()).to.equal(expectedTotalSupply);
   });
 
-  it("Owner should be able to add 10 million tokens + 10 BNB to liquidity pool", async function () {
+  it("Treasury should be able to add initial liquidity to liquidity pool", async function () {
     // Allow DEX to transfer during presale
     await token.connect(treasuryAccount).allowPreSaleTransfer(dexRouterAddress, true);
 
-    // Set timestamp to current block time + 100
-    const latestBlock = await ethers.provider.getBlock("latest");
-    const timestamp = latestBlock.timestamp + 100;
-
-    print("Approve DEX router to transfer treasury's tokens");
+    // Approve DEX router to transfer treasury's tokens
     await token.connect(treasuryAccount).approve(dexRouterAddress, addZeroes("100000000", DECIMALS));
 
-    print("Deposit 10 million tokens + 10 BNB into liquidity");
+    // Deposit 10 million tokens + 10 BNB into liquidity
     await dexRouter.connect(treasuryAccount).addLiquidityETH(
       token.address,
       addZeroes("10000000", DECIMALS),
       0,
       0,
       treasuryAccount.address,
-      timestamp,
+      (await ethers.provider.getBlock("latest")).timestamp + 100,
       { value: addZeroes(10, 18) } // 10 BNB
     );
-  });
 
-  it("Liquidity pool should have 10 million / 10 BNB reserves and owner should have LP tokens", async function () {
     const tokensInLP = addZeroes("10000000", DECIMALS);
     const ethInLP = addZeroes(10, 18);
     const expectedLPtokens = calculateInitialLP(tokensInLP, ethInLP);
@@ -120,41 +171,23 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     // Get LP token balance for owner
     const LPtokenBalance = await dexPair.balanceOf(treasuryAccount.address);
 
-    print("Treasury should have LP tokens after adding liquidity");
+    // Treasury should have LP tokens after adding liquidity
     expect(LPtokenBalance).to.equal(expectedLPtokens);
 
-    // Check number of reserves in Pancake pair
-    const reserves = await dexPair.getReserves();
-
-    // Check which token (0/1) is eth vs token
-    let tokenReserves, ethReserves;
-    if ((await dexPair.token0()) === token.address) {
-      tokenReserves = reserves.reserve0;
-      ethReserves = reserves.reserve1;
-    } else {
-      tokenReserves = reserves.reserve1;
-      ethReserves = reserves.reserve0;
-    }
-
-    print("Liquidity pool pair shoud have 10 BNB in reserves");
+    // Check eth/token reserves in DEX pair
+    const { ethReserves, tokenReserves } = await getLiquidityReserves();
     expect(ethReserves).to.equal(addZeroes(10, 18));
-
-    print("Liquidity pool pair should have 10 million tokens in reserves");
     expect(tokenReserves).to.equal(addZeroes("10000000", DECIMALS));
   });
 
-  it("Should allow treasury to transfer 1000 tokens to account1", async function () {
-    print("Transfer 1000 tokens from treasury to account1");
+  it("Should allow treasury to transfer tokens during pre-sale", async function () {
     await transferTokens(treasuryAccount, account1, addZeroes(1000, DECIMALS));
 
-    print("account1 should have 1000 tokens (no fees collected)");
+    // no fees should be collected
     expect(await token.balanceOf(account1.address)).to.equal(addZeroes(1000, DECIMALS));
   });
 
-  it("Should block account1 from transacting until trading is open", async function () {
-    print("Try to transfer 100 tokens from account1 to account2");
-    print("Transaction should fail with reason: 'Trading not open yet'");
-
+  it("Should block other accounts from transacting until trading is open", async function () {
     try {
       await transferTokens(account1, account2, addZeroes(100, DECIMALS));
     } catch (error) {
@@ -165,48 +198,45 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(await token.balanceOf(account2.address)).to.equal(addZeroes(0, DECIMALS));
   });
 
-  it("Should open up trading and allow account1 to transact with account2", async function () {
+  it("Should open up trading and allow accounts to transact", async function () {
     await token.connect(treasuryAccount).openTrade();
-
-    print("Try to transfer 100 tokens from account1 to account2");
     await transferTokens(account1, account2, addZeroes(100, DECIMALS));
     expect(await token.balanceOf(account2.address)).to.equal(addZeroes(100, DECIMALS));
     expect(await token.balanceOf(account1.address)).to.equal(addZeroes(900, DECIMALS));
   });
 
-  it("Should apply buy fees when account3 buys shares from exchange", async function () {
-    print("Account3 buys 1000 tokens from exchange");
+  it("Should apply buy fees when buying shares from exchange", async function () {
+    // account3 buys 100 tokens from DEX
     await dexRouter.connect(account3).swapETHForExactTokens(
       addZeroes(1000, DECIMALS), // 1000 tokens
       [await dexRouter.WETH(), token.address],
       account3.address,
-      Math.floor(Date.now() / 1000) + 600, // deadline = 10 mins
+      (await ethers.provider.getBlock("latest")).timestamp + 100,
       { value: BigNumber.from("10000000000000000") } // 0.001 ETH
     );
 
-    print("Expect buy fees to be taken");
+    // check that fees have been taken
     expect(await token.balanceOf(account3.address)).to.equal(addZeroes(870, DECIMALS));
     expect(await token.balanceOf(token.address)).to.equal(addZeroes(80, DECIMALS));
     expect(await token.balanceOf(liquidityAddress)).to.equal(addZeroes(50, DECIMALS));
   });
 
-  it("Should apply sell fees when account3 sells shares to exchange", async function () {
+  it("Should apply sell fees when selling shares to exchange", async function () {
     await token.connect(account3).approve(dexRouter.address, BigNumber.from("1000000000000000000000000000000000000"));
-    await token.connect(treasuryAccount).setAutoSwap(false);
 
-    print("Account3 sells 100 tokens to exchange");
+    // sell 100 tokens to DEX
     await dexRouter.connect(account3).swapExactTokensForETHSupportingFeeOnTransferTokens(
       addZeroes(100, DECIMALS), // 100 tokens,
       0, // minimum ETH out
       [token.address, await dexRouter.WETH()], // pair
       account3.address, // recipient
-      Math.floor(Date.now() / 1000) + 600 // deadline = 10 mins
+      (await ethers.provider.getBlock("latest")).timestamp + 100
     );
 
-    print("Expect sell fees to be taken");
+    // check that sell fees have been taken
     expect(await token.balanceOf(account3.address)).to.equal(addZeroes(770, DECIMALS));
-    expect(await token.balanceOf(token.address)).to.equal(addZeroes(92, DECIMALS));
-    expect(await token.balanceOf(liquidityAddress)).to.equal(addZeroes(55, DECIMALS));
+    expect(await token.balanceOf(token.address)).to.equal(addZeroes(12, DECIMALS));
+    // expect(await token.balanceOf(liquidityAddress)).to.equal(addZeroes(55, DECIMALS));
   });
 
   it("Rebase should increase each account balance by 0.016% after 12 minutes", async function () {
@@ -215,10 +245,11 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     await ethers.provider.send("evm_mine");
 
     expect(await token.pendingRebases()).to.equal(1);
-    print("Manually trigger rebase");
+
+    // trigger rebase
     await token.connect(treasuryAccount).rebase();
 
-    print("Account balances should increase by rebase rate");
+    // check that rebase has been applied
     expect(await token.balanceOf(account2.address)).to.equal(BigNumber.from("100016030912247000000"));
     expect(await token.balanceOf(account1.address)).to.equal(BigNumber.from("900144278210223000000"));
     expect(await token.lastEpoch()).to.equal(1);
@@ -231,10 +262,10 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     await ethers.provider.send("evm_mine");
 
     expect(await token.pendingRebases()).to.equal(100);
-    print("Manually trigger rebase");
+
+    // trigger rebase
     await token.connect(treasuryAccount).rebase();
 
-    print("Account balances should increase by rebase rate");
     expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("100659379119725000000"), 1000000);
     expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("905934412077523000000"), 1000000);
     expect(await token.lastEpoch()).to.equal(41);

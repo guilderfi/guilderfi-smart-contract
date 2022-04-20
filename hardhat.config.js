@@ -18,7 +18,7 @@ const inputCsvData = fs.readFileSync("./accounts.csv", "utf-8");
 const records = parse(inputCsvData, { columns: true });
 for (let i = 0; i < records.length; i++) {
   const row = records[i];
-  accounts.push({ privateKey: row.private_key, balance: "100000000000000000000" });
+  accounts.push({ privateKey: row.private_key, balance: row.balance });
 }
 
 task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
@@ -72,7 +72,7 @@ task("merge", "Merge solidity contracts", async (taskArgs, hre) => {
  * @type import('hardhat/config').HardhatUserConfig
  */
 module.exports = {
-  solidity: "0.8.4",
+  solidity: "0.8.10",
   networks: {
     hardhat: {
       hostname: "127.0.0.1",
