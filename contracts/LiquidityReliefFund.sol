@@ -23,7 +23,7 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
     uint256 public constant LOW_CAP = 10000; // 100.00%
 
     address public pairAddress;
-    bool internal _isLrfActivated = false; 
+    bool internal _hasReachedLowCap = false; 
     bool internal _enabled = true;
 
     // PRIVATE FLAGS
@@ -44,6 +44,15 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
 
     // External execute function
     function execute() override external onlyToken {
+        
+        if (!_hasReachedLowCap) {
+            uint256 backedLiquidityRatio = getBackedLiquidityRatio();
+
+            if (backedLiquidityRatio >= LOW_CAP) {
+                _hasReachedLowCap = true;
+            }
+        }
+
         if (shouldExecute()) {
             _execute();
         }
@@ -51,6 +60,7 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
 
     function shouldExecute() internal view returns (bool) {
         return
+            _hasReachedLowCap &&
             !_isRunning &&
             _enabled;
     }

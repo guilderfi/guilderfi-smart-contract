@@ -360,54 +360,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         return gonAmount.sub(totalFeeAmount);
     }
 
-    /*
-    function addLiquidity() internal swapping {
-        // transfer all tokens from liquidity account to contract
-        uint256 autoLiquidityAmount = _gonBalances[_autoLiquidityAddress].div(_gonsPerFragment);
-        _gonBalances[address(this)] = _gonBalances[address(this)].add(_gonBalances[_autoLiquidityAddress]);
-        _gonBalances[_autoLiquidityAddress] = 0;
-
-        // calculate 50/50 split
-        uint256 amountToLiquify = autoLiquidityAmount.div(2);
-        uint256 amountToSwap = autoLiquidityAmount.sub(amountToLiquify);
-
-        if( amountToSwap == 0 ) {
-            return;
-        }
-
-        address[] memory path = new address[](2);
-        path[0] = address(this);
-        path[1] = _router.WETH();
-
-        uint256 balanceBefore = address(this).balance;
-
-        // swap tokens for ETH
-        _router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            amountToSwap,
-            0,
-            path,
-            address(this),
-            block.timestamp
-        );
-
-        uint256 amountETHLiquidity = address(this).balance.sub(balanceBefore);
-
-        // add tokens + ETH to liquidity pool
-        if (amountToLiquify > 0 && amountETHLiquidity > 0) {
-            _router.addLiquidityETH{value: amountETHLiquidity}(
-                address(this),
-                amountToLiquify,
-                0,
-                0,
-                _autoLiquidityAddress,
-                block.timestamp
-            );
-        }
-
-        lastAddLiquidityTime = block.timestamp;
-    }
-    */
-
     function swapBack() internal swapping {
 
         uint256 totalGonFeesCollected = _treasuryFeesCollected.add(_lrfFeesCollected);

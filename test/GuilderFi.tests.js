@@ -177,7 +177,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(ethReserves).to.equal(addZeroes(10, 18));
     expect(tokenReserves).to.equal(addZeroes("10000000", DECIMALS));
 
-    // await printStatus();
+    await printStatus();
   });
 
   it("Should allow treasury to transfer tokens during pre-sale", async function () {
@@ -197,7 +197,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(await token.balanceOf(account1.address)).to.equal(addZeroes(1000, DECIMALS));
     expect(await token.balanceOf(account2.address)).to.equal(addZeroes(0, DECIMALS));
 
-    // await printStatus();
+    await printStatus();
   });
 
   it("Should open up trading and allow accounts to transact", async function () {
@@ -206,7 +206,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(await token.balanceOf(account2.address)).to.equal(addZeroes(100, DECIMALS));
     expect(await token.balanceOf(account1.address)).to.equal(addZeroes(900, DECIMALS));
 
-    // await printStatus();
+    await printStatus();
   });
 
   it("Should apply buy fees when buying shares from exchange", async function () {
@@ -224,7 +224,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(await token.balanceOf(token.address)).to.equal(addZeroes(80, DECIMALS));
     expect(await token.balanceOf(await token.autoLiquidityEngine())).to.equal(addZeroes(50, DECIMALS));
 
-    // await printStatus();
+    await printStatus();
   });
 
   it("Should apply sell fees when selling shares to exchange", async function () {
@@ -244,7 +244,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     // expect(await token.balanceOf(token.address)).to.equal(addZeroes(12, DECIMALS));
     // expect(await token.balanceOf(liquidityAddress)).to.equal(addZeroes(55, DECIMALS));
 
-    // await printStatus();
+    await printStatus();
   });
 
   it("Rebase should increase each account balance by 0.016% after 12 minutes", async function () {
