@@ -10,9 +10,7 @@ Full details available at:
 https://docs.guilderfi.io
 
 Transaction fees:
-* 5% of each transaction to LRF
-* 5% of each transaction to automated liquidity engine
-* 3% of buy orders / 7% of sell orders to treasury
+https://docs.guilderfi.io/token/trading-fees
 
 ## Smart Contract Variables
 
