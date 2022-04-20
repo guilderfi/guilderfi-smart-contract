@@ -16,6 +16,7 @@ interface IGuilderFi {
         uint256 treasuryFee;
         uint256 lrfFee;
         uint256 liquidityFee;
+        uint256 safeExitFee;
         uint256 burnFee;
         uint256 totalFee;
     }
@@ -57,6 +58,7 @@ interface IGuilderFi {
         uint256 _treasuryFee,
         uint256 _lrfFee,
         uint256 _liquidityFee,
+        uint256 _safeExitFee,
         uint256 _burnFee
     ) external;
 

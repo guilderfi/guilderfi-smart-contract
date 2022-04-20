@@ -15,6 +15,7 @@ let dexPairAddress;
 let owner;
 let treasuryAccount;
 let lrfContract;
+let safeExitFundContract;
 let account1;
 let account2;
 let account3;
@@ -35,6 +36,7 @@ async function printStatus() {
   const feesCollected = await token.balanceOf(token.address);
   const { ethReserves, tokenReserves } = await getLiquidityReserves();
   const liquidityTokens = await token.balanceOf(await token.autoLiquidityEngine());
+  const safeExitFundBalance = await ethers.provider.getBalance(safeExitFundContract.address);
   const backedLiquidity = BigNumber.from("1000000000000000000")
     .mul(treasuryBalance.add(lrfBalance))
     .div(ethReserves.mul(BigNumber.from("10000000000000000")));
@@ -52,6 +54,7 @@ async function printStatus() {
   console.log(`Token fees coll:  ${ethers.utils.formatEther(feesCollected, { comify: true })}`);
   console.log(`Liquidity tokens: ${ethers.utils.formatEther(liquidityTokens, { comify: true })}`);
   console.log();
+  console.log(`Safe exit fund:   ${ethers.utils.formatEther(safeExitFundBalance, { comify: true })}`);
 }
 
 async function transferTokens(from, to, amount) {
@@ -124,6 +127,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
     // contracts
     lrfContract = await ethers.getContractAt("LiquidityReliefFund", await token.lrf());
+    safeExitFundContract = await ethers.getContractAt("SafeExitFund", await token.safeExitFund());
 
     const tx = await owner.sendTransaction({
       to: lrfContract.address,
@@ -134,8 +138,8 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     await transferTokens(treasuryAccount, lrfContract, addZeroes(10000000, 18));
 
     await token.connect(treasuryAccount).setSwapFrequency(0);
-    await token.connect(treasuryAccount).setLrfFrequency(0);
-    await token.connect(treasuryAccount).setAutoLiquidityFrequency(0);
+    // await token.connect(treasuryAccount).setLrfFrequency(0);
+    // await token.connect(treasuryAccount).setAutoLiquidityFrequency(0);
   });
 
   it("Should mint 100m tokens", async function () {
@@ -230,9 +234,20 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
   it("Should apply sell fees when selling shares to exchange", async function () {
     await token.connect(account3).approve(dexRouter.address, BigNumber.from("1000000000000000000000000000000000000"));
 
-    // sell 100 tokens to DEX
+    // sell 90 tokens to DEX
     await dexRouter.connect(account3).swapExactTokensForETHSupportingFeeOnTransferTokens(
-      addZeroes(100, DECIMALS), // 100 tokens,
+      addZeroes(90, DECIMALS), // 100 tokens,
+      0, // minimum ETH out
+      [token.address, await dexRouter.WETH()], // pair
+      account3.address, // recipient
+      (await ethers.provider.getBlock("latest")).timestamp + 100
+    );
+
+    await printStatus();
+
+    // sell 10 tokens to DEX
+    await dexRouter.connect(account3).swapExactTokensForETHSupportingFeeOnTransferTokens(
+      addZeroes(10, DECIMALS), // 100 tokens,
       0, // minimum ETH out
       [token.address, await dexRouter.WETH()], // pair
       account3.address, // recipient

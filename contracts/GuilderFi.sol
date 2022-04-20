@@ -53,6 +53,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     
     // ADDRESSES
     address public _treasuryAddress = 0x46Af38553B5250f2560c3fc650bbAD0950c011c0; 
+    // TODO - remove the below addresses
     address public _lrfAddress = 0xea7231dC1ed7778D5601B1F4dDe1120E8eE38F66;
     address public _autoLiquidityAddress = 0x0874813dEF7e61A003A6d3b114c4474001eD6F0A;
     address public _safeExitFundAddress = 0x67Efb7f2Dd5F6dD55c38C55de898d9f7EE111880;
@@ -72,15 +73,16 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     uint256 private constant MAX_SELL_FEES = 240; // 24%
     uint256 private constant FEE_DENOMINATOR = 1000;
     
-    // Buy fees = 3% treasury, 5% LRF, 5% auto liquidity, 0% burn
-    Fee private _buyFees = Fee(30, 50, 50, 0, 130);
+    // BUY FEES | Treasury = 3% | LRF = 5% | Auto-Liquidity = 5% | SafeExit = 0 | Burn = 0
+    Fee private _buyFees = Fee(30, 50, 50, 0, 0, 130);
     
-    // Sell fees = 7% treasury, 5% LRF, 5% auto liquidity, 0% burn
-    Fee private _sellFees = Fee(70, 50, 50, 0, 170);
+    // SELL FEES | Treasury = 4% | LRF = 7% | Auto-Liquidity = 6% | SafeExit = 1% | Burn = 0
+    Fee private _sellFees = Fee(40, 70, 60, 10, 0, 180);
 
     // FEES COLLECTED
     uint256 internal _treasuryFeesCollected;
     uint256 internal _lrfFeesCollected;
+    uint256 internal _safeExitFeesCollected;
 
     // SETTING FLAGS
     bool public override swapEnabled = true;
@@ -336,10 +338,11 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
         Fee storage fees = (recipient == address(_pair)) ? _sellFees : _buyFees;
 
-        uint256 burnAmount = gonAmount.div(FEE_DENOMINATOR).mul(fees.burnFee);
-        uint256 treasuryAmount = gonAmount.div(FEE_DENOMINATOR).mul(fees.treasuryFee);
-        uint256 lrfAmount = gonAmount.div(FEE_DENOMINATOR).mul(fees.lrfFee);
-        uint256 liquidityAmount = gonAmount.div(FEE_DENOMINATOR).mul(fees.liquidityFee);
+        uint256 burnAmount = fees.burnFee.mul(gonAmount).div(FEE_DENOMINATOR);
+        uint256 treasuryAmount = fees.treasuryFee.mul(gonAmount).div(FEE_DENOMINATOR);
+        uint256 lrfAmount = fees.lrfFee.mul(gonAmount).div(FEE_DENOMINATOR);
+        uint256 safeExitAmount = fees.safeExitFee.mul(gonAmount).div(FEE_DENOMINATOR);
+        uint256 liquidityAmount = fees.liquidityFee.mul(gonAmount).div(FEE_DENOMINATOR);
         uint256 totalFeeAmount = burnAmount + treasuryAmount + lrfAmount + liquidityAmount;
          
         // burn 
@@ -353,6 +356,10 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         _gonBalances[address(this)] = _gonBalances[address(this)].add(lrfAmount);
         _lrfFeesCollected = _lrfFeesCollected.add(lrfAmount.div(_gonsPerFragment));
 
+        // add safe exit fees to smart contract
+        _gonBalances[address(this)] = _gonBalances[address(this)].add(safeExitAmount);
+        _safeExitFeesCollected = _safeExitFeesCollected.add(safeExitAmount.div(_gonsPerFragment));
+
         // add liquidity fees to liquidity address
         _gonBalances[address(autoLiquidityEngine)] = _gonBalances[address(autoLiquidityEngine)].add(liquidityAmount);
 
@@ -362,7 +369,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     function swapBack() internal swapping {
 
-        uint256 totalGonFeesCollected = _treasuryFeesCollected.add(_lrfFeesCollected);
+        uint256 totalGonFeesCollected = _treasuryFeesCollected.add(_lrfFeesCollected).add(_safeExitFeesCollected);
         uint256 amountToSwap = _gonBalances[address(this)].div(_gonsPerFragment);
 
         if (amountToSwap == 0) {
@@ -386,16 +393,21 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
         uint256 amountETH = address(this).balance.sub(balanceBefore);
         uint256 treasuryETH = amountETH.mul(_treasuryFeesCollected).div(totalGonFeesCollected);
-        uint256 lrfETH = amountETH.sub(treasuryETH);
+        uint256 safeExitETH = amountETH.mul(_safeExitFeesCollected).div(totalGonFeesCollected);
+        uint256 lrfETH = amountETH.sub(treasuryETH).sub(safeExitETH);
 
         _treasuryFeesCollected = 0;
         _lrfFeesCollected = 0;
+        _safeExitFeesCollected = 0;
         
         // send eth to treasury
         (bool success, ) = payable(_treasuryAddress).call{ value: treasuryETH }("");
 
         // send eth to lrf
-        (success, ) = payable(_lrfAddress).call{ value: lrfETH }("");
+        (success, ) = payable(address(lrf)).call{ value: lrfETH }("");
+
+        // send eth to safe exit fund
+        (success, ) = payable(address(safeExitFund)).call{ value: safeExitETH }("");
     }
 
     /*
@@ -561,15 +573,17 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         uint256 _treasuryFee,
         uint256 _lrfFee,
         uint256 _liquidityFee,
+        uint256 _safeExitFee,
         uint256 _burnFee
     ) external override onlyOwner {
 
         uint256 feeTotal = _treasuryFee
             .add(_lrfFee)
             .add(_liquidityFee)
+            .add(_safeExitFee)
             .add(_burnFee);
 
-        Fee memory fee = Fee(_treasuryFee, _lrfFee, _liquidityFee, _burnFee, feeTotal);
+        Fee memory fee = Fee(_treasuryFee, _lrfFee, _liquidityFee, _safeExitFee, _burnFee, feeTotal);
         
         if (_isSellFee) {
             require(feeTotal <= MAX_SELL_FEES, "Sell fees are too high");
