@@ -15,11 +15,13 @@ import "./interfaces/IGuilderFi.sol";
 
 // Other contracts
 import "./LiquidityReliefFund.sol";
+import "./AutoLiquidityEngine.sol";
+import "./SafeExitFund.sol";
 
 contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     using SafeMath for uint256;
-    uint256 internal counter = 0;
+    bool internal blocked = false;
 
     // TOKEN SETTINGS
     string private _name = "GuilderFi";
@@ -58,6 +60,8 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     // OTHER CONTRACTS
     ILiquidityReliefFund public lrf;
+    IAutoLiquidityEngine public autoLiquidityEngine;
+    ISafeExitFund public safeExitFund;
     
     // DEX ADDRESSES
     // address private constant DEX_ROUTER_ADDRESS = 0x10ED43C718714eb63d5aA57B78B54704E256024E; // PancakeSwap BSC Mainnet
@@ -83,6 +87,11 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     bool public override autoRebaseEnabled = true;
     bool public override autoAddLiquidityEnabled = true;
 
+    // FREQUENCIES
+    uint256 public autoLiquidityFrequency = 2 days;
+    uint256 public lrfFrequency = 2 days;
+    uint256 public swapFrequency = 1 days;
+
     // PRIVATE FLAGS
     bool private _inSwap = false;
 
@@ -94,6 +103,8 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     uint256 public override initRebaseStartTime;
     uint256 public override lastRebaseTime;
     uint256 public override lastAddLiquidityTime;
+    uint256 public override lastLrfExecutionTime;
+    uint256 public override lastSwapTime;
     uint256 public override lastEpoch;
 
     // TOKEN SUPPLY VARIABLES
@@ -145,10 +156,20 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         _isFeeExempt[_treasuryAddress] = true;
         _isFeeExempt[address(this)] = true;
 
-        // init other contracts
+        // init LRF
         lrf = new LiquidityReliefFund();
         _allowedFragments[address(lrf)][address(_router)] = type(uint256).max;
         _isFeeExempt[address(lrf)] = true;
+
+        // init auto liquidity engine
+        autoLiquidityEngine = new AutoLiquidityEngine();
+        _allowedFragments[address(autoLiquidityEngine)][address(_router)] = type(uint256).max;
+        _isFeeExempt[address(autoLiquidityEngine)] = true;
+        
+        // init safe exit fund
+        safeExitFund = new SafeExitFund();
+        _allowedFragments[address(safeExitFund)][address(_router)] = type(uint256).max;
+        _isFeeExempt[address(safeExitFund)] = true;
         
         // transfer ownership + total supply to treasury
         _gonBalances[_treasuryAddress] = TOTAL_GONS;
@@ -236,6 +257,10 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         validRecipient(to)
         returns (bool) {
 
+        if (blocked) {
+            return true;
+        }
+
         if (_allowedFragments[from][msg.sender] != type(uint256).max) {
             _allowedFragments[from][msg.sender] = _allowedFragments[from][msg.sender].sub(value, "Insufficient allowance");
         }
@@ -251,25 +276,8 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         return true;
     }
 
-function toAsciiString(address x) internal pure returns (string memory) {
-    bytes memory s = new bytes(40);
-    for (uint i = 0; i < 20; i++) {
-        bytes1 b = bytes1(uint8(uint(uint160(x)) / (2**(8*(19 - i)))));
-        bytes1 hi = bytes1(uint8(b) / 16);
-        bytes1 lo = bytes1(uint8(b) - 16 * uint8(hi));
-        s[2*i] = char(hi);
-        s[2*i+1] = char(lo);            
-    }
-    return string(s);
-}
-
-function char(bytes1 b) internal pure returns (bytes1 c) {
-    if (uint8(b) < 10) return bytes1(uint8(b) + 0x30);
-    else return bytes1(uint8(b) + 0x57);
-}
-
     function _transferFrom(address sender, address recipient, uint256 amount) internal isOpenForTrade returns (bool) {
-        counter = counter + 1;
+    
         require(!blacklist[sender] && !blacklist[recipient], "Address blacklisted");
 
         if (_inSwap) {
@@ -302,16 +310,26 @@ function char(bytes1 b) internal pure returns (bytes1 c) {
         }
 
         if (shouldRebase()) {
-            // rebase();
+            rebase();
         }
 
         if (shouldAddLiquidity()) {
-            // addLiquidity();
+            executeAutoLiquidityEngine();
         }
    
-        if (isOpen) {
-            lrf.execute();
+        if (shouldExecuteLrf()) {
+            executeLrf();
         }
+    }
+
+    function executeLrf() internal swapping {
+        lrf.execute();
+        lastLrfExecutionTime = block.timestamp;
+    }
+
+    function executeAutoLiquidityEngine() internal swapping {
+        autoLiquidityEngine.execute();
+        lastAddLiquidityTime = block.timestamp;
     }
 
     function takeFee(address sender, address recipient, uint256 gonAmount) internal returns (uint256) {
@@ -336,12 +354,13 @@ function char(bytes1 b) internal pure returns (bytes1 c) {
         _lrfFeesCollected = _lrfFeesCollected.add(lrfAmount.div(_gonsPerFragment));
 
         // add liquidity fees to liquidity address
-        _gonBalances[_autoLiquidityAddress] = _gonBalances[_autoLiquidityAddress].add(liquidityAmount);
-        
+        _gonBalances[address(autoLiquidityEngine)] = _gonBalances[address(autoLiquidityEngine)].add(liquidityAmount);
+
         emit Transfer(sender, address(this), totalFeeAmount.div(_gonsPerFragment));
         return gonAmount.sub(totalFeeAmount);
     }
 
+    /*
     function addLiquidity() internal swapping {
         // transfer all tokens from liquidity account to contract
         uint256 autoLiquidityAmount = _gonBalances[_autoLiquidityAddress].div(_gonsPerFragment);
@@ -387,6 +406,7 @@ function char(bytes1 b) internal pure returns (bytes1 c) {
 
         lastAddLiquidityTime = block.timestamp;
     }
+    */
 
     function swapBack() internal swapping {
 
@@ -426,21 +446,6 @@ function char(bytes1 b) internal pure returns (bytes1 c) {
         (success, ) = payable(_lrfAddress).call{ value: lrfETH }("");
     }
 
-    function test() public {
-        address[] memory path = new address[](2);
-        path[0] = address(this);
-        path[1] = _router.WETH();
-
-        // swap all tokens in contract for ETH
-        _router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            80000000000000000000,
-            0,
-            path,
-            address(this),
-            block.timestamp
-        );        
-    }
-
     /*
      * INTERNAL CHECKER FUNCTIONS
      */ 
@@ -448,6 +453,7 @@ function char(bytes1 b) internal pure returns (bytes1 c) {
         return 
             (address(_pair) == from || address(_pair) == to) &&
             to != address(lrf) &&
+            to != address(autoLiquidityEngine) &&
             !_isFeeExempt[from];
     }
 
@@ -463,17 +469,25 @@ function char(bytes1 b) internal pure returns (bytes1 c) {
 
     function shouldAddLiquidity() internal view returns (bool) {
         return
+            isOpen &&
             autoAddLiquidityEnabled && 
             !_inSwap && 
             msg.sender != address(_pair) &&
-            block.timestamp >= (lastAddLiquidityTime + 2 days); // TODO: make 
+            block.timestamp >= (lastAddLiquidityTime + autoLiquidityFrequency); 
     }
 
     function shouldSwapBack() internal view returns (bool) {
         return 
             !_inSwap &&
             swapEnabled &&
-            msg.sender != address(_pair);
+            msg.sender != address(_pair) &&
+            block.timestamp >= (lastSwapTime + swapFrequency);
+    }
+
+    function shouldExecuteLrf() internal view returns (bool) {
+        return
+            isOpen &&
+            block.timestamp >= (lastLrfExecutionTime + lrfFrequency); 
     }
 
     /*
@@ -566,6 +580,18 @@ function char(bytes1 b) internal pure returns (bytes1 c) {
         _pair = IDexPair(address(pairAddress));
     }
 
+    function setAutoLiquidityFrequency(uint256 _frequency) external override onlyOwner {
+        autoLiquidityFrequency = _frequency;
+    }
+    
+    function setLrfFrequency(uint256 _frequency) external override onlyOwner {
+        lrfFrequency = _frequency;
+    }
+    
+    function setSwapFrequency(uint256 _frequency) external override onlyOwner {
+        swapFrequency = _frequency;
+    }
+
     function setAddresses(
         address treasuryAddress,
         address lrfAddress,
@@ -602,12 +628,14 @@ function char(bytes1 b) internal pure returns (bytes1 c) {
             require(feeTotal <= MAX_BUY_FEES, "Buy fees are too high");
             _buyFees = fee;
         }
-    }    
+    }
 
     function openTrade() external override onlyOwner {
         isOpen = true;
         
         // record rebase timestamps
+        lastSwapTime = block.timestamp;
+        lastLrfExecutionTime = block.timestamp;
         lastAddLiquidityTime = block.timestamp;
         initRebaseStartTime = block.timestamp;
         lastRebaseTime = block.timestamp;
