@@ -66,7 +66,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     // FEES
     uint256 private constant MAX_BUY_FEES = 200; // 20%
-    uint256 private constant MAX_SELL_FEES = 240; // 24%
+    uint256 private constant MAX_SELL_FEES = 250; // 25%
     uint256 private constant FEE_DENOMINATOR = 1000;
     
     // BUY FEES | Treasury = 3% | LRF = 5% | Auto-Liquidity = 5% | SafeExit = 0 | Burn = 0
