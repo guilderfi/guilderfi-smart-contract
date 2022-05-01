@@ -25,7 +25,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     // TOKEN SETTINGS
     string private _name = "GuilderFi";
-    string private _symbol = "NPLUS1";
+    string private _symbol = "NPlus1";
     uint8 private constant DECIMALS = 18;
 
     // CONSTANTS
@@ -62,7 +62,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     
     // DEX ADDRESSES
     // address private constant DEX_ROUTER_ADDRESS = 0x10ED43C718714eb63d5aA57B78B54704E256024E; // PancakeSwap BSC Mainnet
-    address private constant DEX_ROUTER_ADDRESS = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1; // PancakeSwap BSC Testnet
+    address private constant DEX_ROUTER_ADDRESS = 0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3; // PancakeSwap BSC Testnet
 
     // FEES
     uint256 private constant MAX_BUY_FEES = 200; // 20%
@@ -115,13 +115,14 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     mapping(address => mapping(address => uint256)) private _allowedFragments;
     mapping(address => bool) public blacklist;
 
-    // PRE-SALE FLAG
-    bool public override isOpen = false;
+    // PRE-SALE FLAGS
+    bool public override isPreSale = true;
+    bool public override hasLaunched = false;
     mapping(address => bool) private _allowPreSaleTransfer;
 
     // MODIFIERS
-    modifier isOpenForTrade() {
-        require(isOpen || msg.sender == owner() || _allowPreSaleTransfer[msg.sender], "Trading not open yet");
+    modifier checkAllowTransfer() {
+        require(!isPreSale || msg.sender == owner() || _allowPreSaleTransfer[msg.sender], "Trading not open yet");
         _;
     }    
 
@@ -180,9 +181,9 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
      * REBASE FUNCTIONS
      */ 
     function rebase() public override {
-        require(isOpen, "Trading is not open yet");
+        require(hasLaunched, "Token has not launched yet");
 
-        if (_inSwap || !isOpen) {
+        if (_inSwap || !hasLaunched) {
             return;
         }
         
@@ -274,7 +275,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         return true;
     }
 
-    function _transferFrom(address sender, address recipient, uint256 amount) internal isOpenForTrade returns (bool) {
+    function _transferFrom(address sender, address recipient, uint256 amount) internal checkAllowTransfer returns (bool) {
     
         require(!blacklist[sender] && !blacklist[recipient], "Address blacklisted");
 
@@ -331,8 +332,11 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         uint256 liquidityAmount = fees.liquidityFee.mul(gonAmount).div(FEE_DENOMINATOR);
         uint256 totalFeeAmount = burnAmount + treasuryAmount + lrfAmount + liquidityAmount;
          
-        // burn 
-        _gonBalances[_burnAddress] = _gonBalances[_burnAddress].add(burnAmount);
+        // burn
+        if (burnAmount > 0) {
+            _gonBalances[_burnAddress] = _gonBalances[_burnAddress].add(burnAmount);
+            emit Transfer(sender, _burnAddress, burnAmount);
+        }
 
         // add treasury fees to smart contract
         _gonBalances[address(this)] = _gonBalances[address(this)].add(treasuryAmount);
@@ -420,7 +424,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     function shouldRebase() internal view returns (bool) {
         return
             autoRebaseEnabled &&
-            isOpen &&
+            hasLaunched &&
             (_totalSupply < MAX_SUPPLY) &&
             msg.sender != address(_pair)    &&
             !_inSwap &&
@@ -429,7 +433,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     function shouldAddLiquidity() internal view returns (bool) {
         return
-            isOpen &&
+            hasLaunched &&
             autoAddLiquidityEnabled && 
             !_inSwap && 
             msg.sender != address(_pair) &&
@@ -446,7 +450,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     function shouldExecuteLrf() internal view returns (bool) {
         return
-            isOpen &&
+            hasLaunched &&
             block.timestamp >= (lastLrfExecutionTime + lrfFrequency); 
     }
 
@@ -534,10 +538,9 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         maxRebaseBatchSize = _maxRebaseBatchSize;
     }
 
-    function setDex(address routerAddress) external override onlyOwner {
-        _router = IDexRouter(routerAddress); 
-        address pairAddress = IDexFactory(_router.factory()).createPair(_router.WETH(), address(this));
-        _pair = IDexPair(address(pairAddress));
+    function setDex(address _routerAddress, address _pairAddress) external override onlyOwner {
+        _router = IDexRouter(_routerAddress);
+        _pair = IDexPair(_pairAddress);
     }
 
     function setAutoLiquidityFrequency(uint256 _frequency) external override onlyOwner {
@@ -595,8 +598,15 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     }
 
     function openTrade() external override onlyOwner {
-        isOpen = true;
-        
+        isPreSale = false;
+    }
+
+    function launchToken() external override onlyOwner {
+        require(!hasLaunched, "Token has already launched");
+
+        isPreSale = false;
+        hasLaunched = true;
+
         // record rebase timestamps
         lastSwapTime = block.timestamp;
         lastLrfExecutionTime = block.timestamp;
@@ -617,6 +627,9 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     }
     function isNotInSwap() public view override returns (bool) {
         return !_inSwap;
+    }
+    function getOwner() public view override returns (address) {
+        return owner();
     }
     function getTreasuryAddress() public view override returns (address) {
         return _treasuryAddress;

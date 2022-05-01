@@ -3,6 +3,7 @@
 pragma solidity 0.8.10;
 
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // TODO import openzeppelin IERC1155
 
@@ -30,6 +31,10 @@ contract SafeExitFund is ISafeExitFund {
 
     modifier onlyToken() {
         require(msg.sender == address(_token), "Sender is not token contract"); _;
+    }
+
+    modifier onlyTokenOwner() {
+        require(msg.sender == address(_token.getOwner()), "Sender is not token owner"); _;
     }
 
     constructor () {
@@ -70,6 +75,14 @@ contract SafeExitFund is ISafeExitFund {
             // ensure random seed can only be set once
             randomSeedHasBeenSet = true;
         }
+    }
+
+    function withdraw(uint256 amount) external override onlyTokenOwner {
+        payable(msg.sender).transfer(amount);
+    }
+    
+    function withdrawTokens(address token, uint256 amount) external override onlyTokenOwner {
+        IERC20(token).transfer(msg.sender, amount);
     }
 
     receive() external payable {}

@@ -39,11 +39,12 @@ interface IGuilderFi {
 
     // Smart Contract Settings
     function openTrade() external;
+    function launchToken() external;
     function setAutoSwap(bool _flag) external;
     function setAutoAddLiquidity(bool _flag) external;
     function setAutoRebase(bool _flag) external;
     function setMaxRebaseBatchSize(uint256 _maxRebaseBatchSize) external;
-    function setDex(address routerAddress) external;
+    function setDex(address routerAddress, address pairAddress) external;
     function setAutoLiquidityFrequency(uint256 _frequency) external;
     function setLrfFrequency(uint256 _frequency) external;
     function setSwapFrequency(uint256 _frequency) external;
@@ -69,12 +70,14 @@ interface IGuilderFi {
     function allowPreSaleTransfer(address _addr, bool _flag) external;
 
     // Read only functions
-    function isOpen() external view returns (bool);
+    function isPreSale() external view returns (bool);
+    function hasLaunched() external view returns (bool);
     function getCirculatingSupply() external view returns (uint256);
     function checkFeeExempt(address _addr) external view returns (bool);
     function isNotInSwap() external view returns (bool);
 
     // Addresses
+    function getOwner() external view returns (address);
     function getTreasuryAddress() external view returns (address);
     function getLrfAddress() external view returns (address);
     function getAutoLiquidityAddress() external view returns (address);

@@ -137,9 +137,10 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
     await transferTokens(treasuryAccount, lrfContract, addZeroes(10000000, 18));
 
-    await token.connect(treasuryAccount).setSwapFrequency(0);
-    // await token.connect(treasuryAccount).setLrfFrequency(0);
-    // await token.connect(treasuryAccount).setAutoLiquidityFrequency(0);
+    // Set all frequencies to 1 day
+    await token.connect(treasuryAccount).setSwapFrequency(86400);
+    await token.connect(treasuryAccount).setLrfFrequency(86400);
+    await token.connect(treasuryAccount).setAutoLiquidityFrequency(86400);
   });
 
   it("Should mint 100m tokens", async function () {
@@ -206,6 +207,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
   it("Should open up trading and allow accounts to transact", async function () {
     await token.connect(treasuryAccount).openTrade();
+    await token.connect(treasuryAccount).launchToken();
     await transferTokens(account1, account2, addZeroes(100, DECIMALS));
     expect(await token.balanceOf(account2.address)).to.equal(addZeroes(100, DECIMALS));
     expect(await token.balanceOf(account1.address)).to.equal(addZeroes(900, DECIMALS));

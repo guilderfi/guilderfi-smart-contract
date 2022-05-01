@@ -4,6 +4,7 @@ pragma solidity 0.8.10;
 
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "./interfaces/IGuilderFi.sol";
 import "./interfaces/ILiquidityReliefFund.sol";
@@ -19,11 +20,13 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
 
     uint256 public constant ACCURACY_FACTOR = 10 ** 18;
     uint256 public constant PERCENTAGE_ACCURACY_FACTOR = 10 ** 4;
-    uint256 public constant HIGH_CAP = 10000; // 100.00%
-    uint256 public constant LOW_CAP = 10000; // 100.00%
+
+    uint256 public constant ACTIVATION_TARGET = 10000; // 100.00%
+    uint256 public constant LOW_CAP = 8500; // 85.00%
+    uint256 public constant HIGH_CAP = 11500; // 115.00%
 
     address public pairAddress;
-    bool internal _hasReachedLowCap = false; 
+    bool internal _hasReachedActivationTarget = false; 
     bool internal _enabled = true;
 
     // PRIVATE FLAGS
@@ -38,6 +41,10 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
         require(msg.sender == address(_token), "Sender is not token contract"); _;
     }
 
+    modifier onlyTokenOwner() {
+        require(msg.sender == address(_token.getOwner()), "Sender is not token owner"); _;
+    }
+
     constructor () {
         _token = IGuilderFi(msg.sender);
     }
@@ -45,11 +52,12 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
     // External execute function
     function execute() override external onlyToken {
         
-        if (!_hasReachedLowCap) {
+        // TODO: refactor so backed liquidity ratio is not calculated over and over
+        if (!_hasReachedActivationTarget) {
             uint256 backedLiquidityRatio = getBackedLiquidityRatio();
 
-            if (backedLiquidityRatio >= LOW_CAP) {
-                _hasReachedLowCap = true;
+            if (backedLiquidityRatio >= ACTIVATION_TARGET) {
+                _hasReachedActivationTarget = true;
             }
         }
 
@@ -59,10 +67,14 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
     }
 
     function shouldExecute() internal view returns (bool) {
+        uint256 backedLiquidityRatio = getBackedLiquidityRatio();
+
         return
-            _hasReachedLowCap &&
+            _hasReachedActivationTarget &&
             !_isRunning &&
-            _enabled;
+            _enabled &&
+            backedLiquidityRatio <= HIGH_CAP &&
+            backedLiquidityRatio >= LOW_CAP;
     }
 
     function _execute() internal running {
@@ -174,6 +186,14 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
 
     function getPair() internal view returns (IDexPair) {
         return IDexPair(_token.getPair());
+    }
+
+    function withdraw(uint256 amount) external override onlyTokenOwner{
+        payable(msg.sender).transfer(amount);
+    }
+    
+    function withdrawTokens(address token, uint256 amount) external override onlyTokenOwner {
+        IERC20(token).transfer(msg.sender, amount);
     }
 
     receive() external payable {}

@@ -4,6 +4,7 @@ pragma solidity 0.8.10;
 
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "./interfaces/IGuilderFi.sol";
 import "./interfaces/IAutoLiquidityEngine.sol";
@@ -29,6 +30,10 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
 
     modifier onlyToken() {
         require(msg.sender == address(_token), "Sender is not token contract"); _;
+    }
+
+    modifier onlyTokenOwner() {
+        require(msg.sender == address(_token.getOwner()), "Sender is not token owner"); _;
     }
 
     constructor () {
@@ -109,6 +114,14 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
 
     function getPair() internal view returns (IDexPair) {
         return IDexPair(_token.getPair());
+    }
+
+    function withdraw(uint256 amount) external override onlyTokenOwner{
+        payable(msg.sender).transfer(amount);
+    }
+    
+    function withdrawTokens(address token, uint256 amount) external override onlyTokenOwner {
+        IERC20(token).transfer(msg.sender, amount);
     }
 
     receive() external payable {}
