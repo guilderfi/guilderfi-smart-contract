@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.10;
+pragma solidity ^0.8.10;
 
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 import "./interfaces/IGuilderFi.sol";
 import "./interfaces/ISafeExitFund.sol";
@@ -22,7 +23,15 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
     Package[] private packages;
 
+    struct NftData {
+        uint256 insuredAmount;
+        bool used; // one time use
+    }
+
+    mapping(uint256 => NftData) private nftData;
+
     uint256 private randomSeed = 123456789;
+    uint256 private timestampSalt = 123456789;
     bool private randomSeedHasBeenSet = false;
 
     // GuilderFi token contract address
@@ -36,7 +45,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         require(msg.sender == address(_token.getOwner()), "Sender is not token owner"); _;
     }
 
-    constructor () ERC721Enumerable("Safe Exit Fund", "SEF") {
+    constructor () ERC721("Safe Exit Fund", "SEF") {
         _token = IGuilderFi(msg.sender);
 
         packages.push(Package("Package A", 25 ether, 0, 24));
@@ -50,26 +59,44 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         // TODO
     }
 
+    // Gets the insurance amount of an NFT, and the total insurable
+    function getNftInsurance(uint256 _nftId) external view returns (uint256, uint256) {
 
-    function getInsuranceAmount(address _walletAddress) external view returns (uint256) {
+        if (nftData[_nftId].used == true) return (0,0);
 
-        // using address + randomSeed, generate random integer between 0 and 99
-        uint256 randomNum = uint256(keccak256(abi.encodePacked(_walletAddress, randomSeed))) % 100;
+        // using timestamp salt & random seed & nftId we get a pseudo random number between 0 and 99
+        uint256 randomNum = uint256(keccak256(abi.encodePacked(timestampSalt, randomSeed, _nftId))) % 100;
 
         for (uint i=0; i<packages.length; i++) {
             if (randomNum >= packages[i].randomRangeFrom && randomNum <= packages[i].randomRangeTo) {
-                return packages[i].insuranceAmount;
+                return (nftData[_nftId].insuredAmount, packages[i].insuranceAmount);
             }
         }
 
-        return 0;
+        return (0,0);
     }
+
+
+    // function getInsuranceAmount(address _walletAddress) external view returns (uint256) {
+
+    //     // using address + randomSeed, generate random integer between 0 and 99
+    //     uint256 randomNum = uint256(keccak256(abi.encodePacked(_walletAddress, randomSeed))) % 100;
+
+    //     for (uint i=0; i<packages.length; i++) {
+    //         if (randomNum >= packages[i].randomRangeFrom && randomNum <= packages[i].randomRangeTo) {
+    //             return packages[i].insuranceAmount;
+    //         }
+    //     }
+
+    //     return 0;
+    // }
 
     // Should be set after pre-sales are complete
     // Trigerred by an external function from main contract
     function setRandomSeed(uint256 _randomSeed) external onlyToken {
         if (!randomSeedHasBeenSet) {
             randomSeed = _randomSeed;
+            timestampSalt = block.timestamp;
 
             // ensure random seed can only be set once
             randomSeedHasBeenSet = true;
