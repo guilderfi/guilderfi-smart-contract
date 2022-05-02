@@ -79,7 +79,9 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     }
 
     // Gets the insurance amount of an NFT, and the total insurable
-    function getNftInsurance(uint256 _nftId) external view returns (uint256, uint256) {
+    function getNftInsurance(uint256 _nftId) public view returns (uint256, uint256) {
+        uint256 tokenId = _tokenId.current();
+        require(_nftId <= tokenId, "NFT ID out of bounds");
 
         if (nftData[_nftId].used == true) return (0,0);
 
@@ -93,6 +95,20 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         }
 
         return (0,0);
+    }
+
+    function getTotalUserInsurance(address _walletAddress) external view returns (uint256, uint256) {
+        uint256 insuredAmount = 0;
+        uint256 totalInsurable = 0;
+
+        for (uint256 i = 0; i < balanceOf(_walletAddress); i++) {
+            uint256 nftId = tokenOfOwnerByIndex(_walletAddress, i);
+            (uint256 insuredPerNft, uint256 totalInsurablePerNft) = getNftInsurance(nftId);
+            insuredAmount += insuredPerNft;
+            totalInsurable += totalInsurablePerNft;
+        }
+
+        return (insuredAmount, totalInsurable);
     }
 
 
