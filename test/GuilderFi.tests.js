@@ -5,6 +5,7 @@ const clc = require("cli-color");
 
 const TOKEN_NAME = "GuilderFi";
 const DECIMALS = 18;
+const DEAD = ethers.utils.getAddress("0x000000000000000000000000000000000000dEaD");
 
 let token;
 let dexRouter;
@@ -16,6 +17,9 @@ let owner;
 let treasuryAccount;
 let lrfContract;
 let safeExitFundContract;
+let preSale;
+let strategicReserves;
+let marketing;
 let account1;
 let account2;
 let account3;
@@ -60,6 +64,44 @@ async function printStatus() {
 async function transferTokens(from, to, amount) {
   const transaction = await token.connect(from).transfer(to.address, amount);
   await transaction.wait();
+}
+
+async function transferEth(from, to, amount) {
+  const tx = await from.sendTransaction({
+    to: to.address,
+    value: amount,
+  });
+  await tx.wait();
+}
+
+async function addLiquidity(from, token, tokenAmount, ethAmount) {
+  const timestamp = (await ethers.provider.getBlock("latest")).timestamp + 100;
+  await dexRouter.connect(from).addLiquidityETH(token.address, tokenAmount, 0, 0, from.address, timestamp, {
+    value: ethAmount,
+  });
+}
+
+async function buyTokens(account, tokenAmount) {
+  await dexRouter
+    .connect(account)
+    .swapETHForExactTokens(
+      tokenAmount,
+      [await dexRouter.WETH(), token.address],
+      account.address,
+      (await ethers.provider.getBlock("latest")).timestamp + 100,
+      { value: BigNumber.from("10000000000000000") }
+    );
+}
+
+async function sellTokens(account, tokenAmount) {
+  await dexRouter.connect(account).swapExactTokensForETHSupportingFeeOnTransferTokens(
+    tokenAmount,
+    0, // minimum ETH out
+    [token.address, await dexRouter.WETH()], // pair
+    account.address, // recipient
+    (await ethers.provider.getBlock("latest")).timestamp + 100
+  );
+
 }
 
 async function getLiquidityReserves() {
@@ -108,7 +150,7 @@ function calculateInitialLP(tokenA, tokenB) {
 describe(`Testing ${TOKEN_NAME}..`, function () {
   before(async function () {
     // Set up accounts
-    [owner, treasuryAccount, , , , account1, account2, account3] = await ethers.getSigners();
+    [owner, treasuryAccount, preSale, strategicReserves, marketing, account1, account2, account3] = await ethers.getSigners();
 
     print(`Deploying ${TOKEN_NAME} smart contract..`);
 
@@ -128,54 +170,41 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     // contracts
     lrfContract = await ethers.getContractAt("LiquidityReliefFund", await token.lrf());
     safeExitFundContract = await ethers.getContractAt("SafeExitFund", await token.safeExitFund());
+  });
 
-    const tx = await owner.sendTransaction({
-      to: lrfContract.address,
-      value: ethers.utils.parseEther("1.0"), // Sends exactly 1.0 ether
-    });
-    await tx.wait();
+  it("Should mint 100m tokens", async function () {
+    // send 1 eth to LRF
+    transferEth(owner, lrfContract, ethers.utils.parseEther("1.0"));
 
-    await transferTokens(treasuryAccount, lrfContract, addZeroes(10000000, 18));
+    // initial distribution
+    await transferTokens(treasuryAccount, preSale, addZeroes(27000000, 18));
+    await transferTokens(treasuryAccount, strategicReserves, addZeroes(10000000, 18));
+    await transferTokens(treasuryAccount, marketing, addZeroes(5000000, 18));
+    await transferTokens(treasuryAccount, lrfContract, addZeroes(32136765, 18));
 
     // Set all frequencies to 1 day
     await token.connect(treasuryAccount).setSwapFrequency(86400);
     await token.connect(treasuryAccount).setLrfFrequency(86400);
     await token.connect(treasuryAccount).setAutoLiquidityFrequency(86400);
-  });
 
-  it("Should mint 100m tokens", async function () {
-    // expected total supply = 100m (18 decimal places)
-    expect(await token.balanceOf(treasuryAccount.address)).to.equal(addZeroes("90000000", DECIMALS));
     expect(await token.totalSupply()).to.equal(addZeroes("100000000", DECIMALS));
+    expect(await token.balanceOf(treasuryAccount.address)).to.equal(addZeroes("25863235", DECIMALS));
   });
 
   it("Treasury should be able to add initial liquidity to liquidity pool", async function () {
-    // Allow DEX to transfer during presale
+    // Approve DEX to transfer
     await token.connect(treasuryAccount).allowPreSaleTransfer(dexRouterAddress, true);
-
-    // Approve DEX router to transfer treasury's tokens
-    await token.connect(treasuryAccount).approve(dexRouterAddress, addZeroes("100000000", DECIMALS));
+    await token.connect(treasuryAccount).approve(dexRouterAddress, addZeroes("999999999999", DECIMALS));
 
     // Deposit 10 million tokens + 10 BNB into liquidity
-    await dexRouter.connect(treasuryAccount).addLiquidityETH(
-      token.address,
-      addZeroes("10000000", DECIMALS),
-      0,
-      0,
-      treasuryAccount.address,
-      (await ethers.provider.getBlock("latest")).timestamp + 100,
-      { value: addZeroes(10, 18) } // 10 BNB
-    );
+    await addLiquidity(treasuryAccount, token, addZeroes("10000000", DECIMALS), addZeroes(10, 18));
 
     const tokensInLP = addZeroes("10000000", DECIMALS);
     const ethInLP = addZeroes(10, 18);
     const expectedLPtokens = calculateInitialLP(tokensInLP, ethInLP);
 
-    // Get LP token balance for owner
-    const LPtokenBalance = await dexPair.balanceOf(treasuryAccount.address);
-
     // Treasury should have LP tokens after adding liquidity
-    expect(LPtokenBalance).to.equal(expectedLPtokens);
+    expect(await dexPair.balanceOf(treasuryAccount.address)).to.equal(expectedLPtokens);
 
     // Check eth/token reserves in DEX pair
     const { ethReserves, tokenReserves } = await getLiquidityReserves();
@@ -202,6 +231,17 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(await token.balanceOf(account1.address)).to.equal(addZeroes(1000, DECIMALS));
     expect(await token.balanceOf(account2.address)).to.equal(addZeroes(0, DECIMALS));
 
+    // account1 buys 1000 tokens
+    await token.connect(account1).approve(dexRouterAddress, addZeroes("999999999999", DECIMALS));
+    try {
+      await buyTokens(account1, addZeroes(1000, DECIMALS));
+    } catch (error) {
+      expect(error.message).to.contain("TRANSFER_FAILED");
+    }
+
+    expect(await token.balanceOf(account1.address)).to.equal(addZeroes(1000, DECIMALS));
+    expect(await token.balanceOf(account2.address)).to.equal(addZeroes(0, DECIMALS));
+
     // await printStatus();
   });
 
@@ -216,54 +256,109 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
   });
 
   it("Should apply buy fees when buying shares from exchange", async function () {
-    // account3 buys 100 tokens from DEX
-    await dexRouter.connect(account3).swapETHForExactTokens(
-      addZeroes(1000, DECIMALS), // 1000 tokens
-      [await dexRouter.WETH(), token.address],
-      account3.address,
-      (await ethers.provider.getBlock("latest")).timestamp + 100,
-      { value: BigNumber.from("10000000000000000") } // 0.001 ETH
+    // set fees to 20.1% - expect error
+    try {
+      await token.connect(treasuryAccount).setFees(
+        false, // _isSellFee,
+        50, // 5% _treasuryFee,
+        50, // 5% _lrfFee,
+        50, // 5% _liquidityFee,
+        50, // 5% _safeExitFee,
+        1 // 0.1%  _burnFee
+      );
+    } catch (error) {
+      expect(error.message).to.contain("Buy fees are too high");
+    }
+
+    // set fees to 20% - expect no error
+    await token.connect(treasuryAccount).setFees(
+      false, // _isSellFee,
+      50, // 5% _treasuryFee,
+      50, // 5% _lrfFee,
+      50, // 5% _liquidityFee,
+      49, // 4.9% _safeExitFee,
+      1 // 0.1%  _burnFee
     );
 
+    // set fees
+    await token.connect(treasuryAccount).setFees(
+      false, // _isSellFee,
+      10, // 1% _treasuryFee,
+      20, // 2% _lrfFee,
+      30, // 3% _liquidityFee,
+      40, // 4% _safeExitFee,
+      50 // 5%  _burnFee
+    );
+
+    await buyTokens(account3, addZeroes(1000, DECIMALS));
+
     // check that fees have been taken
-    expect(await token.balanceOf(account3.address)).to.equal(addZeroes(870, DECIMALS));
-    expect(await token.balanceOf(token.address)).to.equal(addZeroes(80, DECIMALS));
-    expect(await token.balanceOf(await token.autoLiquidityEngine())).to.equal(addZeroes(50, DECIMALS));
+    expect(await token.balanceOf(account3.address)).to.equal(addZeroes(850, DECIMALS));
+    expect(await token.balanceOf(token.address)).to.equal(addZeroes(70, DECIMALS));
+    expect(await token.balanceOf(await token.autoLiquidityEngine())).to.equal(addZeroes(30, DECIMALS));
+    expect(await token.balanceOf(DEAD)).to.equal(addZeroes(50, DECIMALS));
 
     // await printStatus();
   });
 
   it("Should apply sell fees when selling shares to exchange", async function () {
-    await token.connect(account3).approve(dexRouter.address, BigNumber.from("1000000000000000000000000000000000000"));
 
-    // sell 90 tokens to DEX
-    await dexRouter.connect(account3).swapExactTokensForETHSupportingFeeOnTransferTokens(
-      addZeroes(90, DECIMALS), // 100 tokens,
-      0, // minimum ETH out
-      [token.address, await dexRouter.WETH()], // pair
-      account3.address, // recipient
-      (await ethers.provider.getBlock("latest")).timestamp + 100
+    // set fees to 25.1% - expect error
+    try {
+      await token.connect(treasuryAccount).setFees(
+        true, // _isSellFee,
+        50, // 5% _treasuryFee,
+        50, // 5% _lrfFee,
+        50, // 5% _liquidityFee,
+        50, // 5% _safeExitFee,
+        51 // 5.1%  _burnFee
+      );
+    } catch (error) {
+      expect(error.message).to.contain("Sell fees are too high");
+    }
+
+    // set fees to 25% - expect no error
+    await token.connect(treasuryAccount).setFees(
+      true, // _isSellFee,
+      50, // 5% _treasuryFee,
+      50, // 5% _lrfFee,
+      50, // 5% _liquidityFee,
+      50, // 5% _safeExitFee,
+      50 // 5%  _burnFee
     );
 
-    // await printStatus();
-
-    // sell 10 tokens to DEX
-    await dexRouter.connect(account3).swapExactTokensForETHSupportingFeeOnTransferTokens(
-      addZeroes(10, DECIMALS), // 100 tokens,
-      0, // minimum ETH out
-      [token.address, await dexRouter.WETH()], // pair
-      account3.address, // recipient
-      (await ethers.provider.getBlock("latest")).timestamp + 100
+    // set fees
+    await token.connect(treasuryAccount).setFees(
+      true, // _isSellFee,
+      50, // 5% _treasuryFee,
+      30, // 3% _lrfFee,
+      50, // 5% _liquidityFee,
+      20, // 2% _safeExitFee,
+      10 // 1%  _burnFee
     );
 
-    // check that sell fees have been taken
-    // expect(await token.balanceOf(account3.address)).to.equal(addZeroes(770, DECIMALS));
-    // expect(await token.balanceOf(token.address)).to.equal(addZeroes(12, DECIMALS));
-    // expect(await token.balanceOf(liquidityAddress)).to.equal(addZeroes(55, DECIMALS));
+    await sellTokens(account1, addZeroes(900, DECIMALS));
+
+    // check that fees have been taken
+    expect(await token.balanceOf(account1.address)).to.equal(0);
+    expect(await token.balanceOf(token.address)).to.equal(addZeroes(70 + 90, DECIMALS));
+    expect(await token.balanceOf(await token.autoLiquidityEngine())).to.equal(addZeroes(30 + 45, DECIMALS));
+    expect(await token.balanceOf(DEAD)).to.equal(addZeroes(50 + 9, DECIMALS));
 
     // await printStatus();
   });
 
+  it("Should swap tokens collected for ETH", async function () {
+    await token.connect(treasuryAccount).setSwapFrequency(0);
+
+    await token.connect(account2).approve(dexRouterAddress, addZeroes("999999999999", DECIMALS));
+    await sellTokens(account2, addZeroes(100, DECIMALS));
+
+    expect(await token.balanceOf(account2.address)).to.equal(0);
+    expect(await token.balanceOf(token.address)).to.equal(addZeroes(10, DECIMALS));
+  });
+
+  /*
   it("Rebase should increase each account balance by 0.016% after 12 minutes", async function () {
     // move time forward 12 minutes
     await ethers.provider.send("evm_increaseTime", [720]);
@@ -319,4 +414,5 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(await token.lastEpoch()).to.equal(101);
     expect(await token.pendingRebases()).to.equal(0);
   });
+  */
 });

@@ -61,8 +61,8 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     ISafeExitFund public safeExitFund;
     
     // DEX ADDRESSES
-    // address private constant DEX_ROUTER_ADDRESS = 0x10ED43C718714eb63d5aA57B78B54704E256024E; // PancakeSwap BSC Mainnet
-    address private constant DEX_ROUTER_ADDRESS = 0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3; // PancakeSwap BSC Testnet
+    address private constant DEX_ROUTER_ADDRESS = 0x10ED43C718714eb63d5aA57B78B54704E256024E; // PancakeSwap BSC Mainnet
+    // address private constant DEX_ROUTER_ADDRESS = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1; // PancakeSwap BSC Testnet
 
     // FEES
     uint256 private constant MAX_BUY_FEES = 200; // 20%
@@ -325,12 +325,17 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
         Fee storage fees = (recipient == address(_pair)) ? _sellFees : _buyFees;
 
-        uint256 burnAmount = fees.burnFee.mul(gonAmount).div(FEE_DENOMINATOR);
-        uint256 treasuryAmount = fees.treasuryFee.mul(gonAmount).div(FEE_DENOMINATOR);
-        uint256 lrfAmount = fees.lrfFee.mul(gonAmount).div(FEE_DENOMINATOR);
-        uint256 safeExitAmount = fees.safeExitFee.mul(gonAmount).div(FEE_DENOMINATOR);
+        uint256 burnAmount      = fees.burnFee.mul(gonAmount).div(FEE_DENOMINATOR);
+        uint256 treasuryAmount  = fees.treasuryFee.mul(gonAmount).div(FEE_DENOMINATOR);
+        uint256 lrfAmount       = fees.lrfFee.mul(gonAmount).div(FEE_DENOMINATOR);
+        uint256 safeExitAmount  = fees.safeExitFee.mul(gonAmount).div(FEE_DENOMINATOR);
         uint256 liquidityAmount = fees.liquidityFee.mul(gonAmount).div(FEE_DENOMINATOR);
-        uint256 totalFeeAmount = burnAmount + treasuryAmount + lrfAmount + liquidityAmount;
+        
+        uint256 totalFeeAmount  = burnAmount
+            .add(treasuryAmount)
+            .add(lrfAmount)
+            .add(liquidityAmount)
+            .add(safeExitAmount);
          
         // burn
         if (burnAmount > 0) {
