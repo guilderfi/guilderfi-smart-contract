@@ -111,21 +111,6 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         return (insuredAmount, totalInsurable);
     }
 
-
-    // function getInsuranceAmount(address _walletAddress) external view returns (uint256) {
-
-    //     // using address + randomSeed, generate random integer between 0 and 99
-    //     uint256 randomNum = uint256(keccak256(abi.encodePacked(_walletAddress, randomSeed))) % 100;
-
-    //     for (uint i=0; i<packages.length; i++) {
-    //         if (randomNum >= packages[i].randomRangeFrom && randomNum <= packages[i].randomRangeTo) {
-    //             return packages[i].insuranceAmount;
-    //         }
-    //     }
-
-    //     return 0;
-    // }
-
     // Should be set after pre-sales are complete
     // Trigerred by an external function from main contract
     function setRandomSeed(uint256 _randomSeed) external onlyToken {
