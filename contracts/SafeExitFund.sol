@@ -79,6 +79,26 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         // TODO
     }
 
+    function drainNftsInWallet(address _walletAddress) external onlyToken {
+        for (uint256 i = 0; i < balanceOf(_walletAddress); i++) {
+            uint256 nftId = tokenOfOwnerByIndex(_walletAddress, i);
+            nftData[nftId].insuredAmount = 0;
+        }
+    }
+
+    function useNftsInWallet() external {
+        uint256 insuranceToRedeem = 0;
+
+        for (uint256 i = 0; i < balanceOf(msg.sender); i++) {
+            uint256 nftId = tokenOfOwnerByIndex(msg.sender, i);
+            insuranceToRedeem += nftData[nftId].insuredAmount;
+            nftData[nftId].insuredAmount = 0;
+            nftData[nftId].used = true;
+        }
+
+        payable(msg.sender).transfer(insuranceToRedeem);
+    }
+
     function tokenURI(uint256 _nftId) public view virtual override returns (string memory) {
         require(_exists(_nftId), "ERC721Metadata: URI query for nonexistent token");
 
