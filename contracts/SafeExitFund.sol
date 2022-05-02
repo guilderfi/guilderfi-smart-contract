@@ -88,9 +88,10 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
             uint256 nftId = tokenOfOwnerByIndex(_walletAddress, i);
 
-            uint256 packageInsuranceAmount = packages[getPackageIndexFromNftId(nftId)].insuranceAmount;
-            if (nftData[nftId].insuredAmount < packageInsuranceAmount) {
-                uint256 spaceLeft = packageInsuranceAmount - nftData[nftId].insuredAmount;
+            (uint256 insuredPerNft, uint256 totalInsurablePerNft) = getNftInsurance(nftId);
+
+            if (insuredPerNft < totalInsurablePerNft) {
+                uint256 spaceLeft = totalInsurablePerNft - insuredPerNft;
 
                 if (_amount <= spaceLeft) {
                     nftData[nftId].insuredAmount += _amount;
