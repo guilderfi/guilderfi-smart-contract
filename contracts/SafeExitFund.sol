@@ -95,7 +95,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
                 if (_amount <= spaceLeft) {
                     nftData[nftId].insuredAmount += _amount;
-                    _amount = 0;
+                    return;
                 } else {
                     nftData[nftId].insuredAmount += spaceLeft;
                     _amount -= spaceLeft;
