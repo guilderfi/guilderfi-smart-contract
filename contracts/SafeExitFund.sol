@@ -76,6 +76,9 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     // External function executed with every main contract transaction
     function execute() override external onlyToken {
         // TODO
+
+        // token transfer or sell -> drain all NFTs
+        // token buy -> fill NFTs
     }
 
     /**
