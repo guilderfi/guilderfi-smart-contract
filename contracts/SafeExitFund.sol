@@ -20,10 +20,10 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     Counters.Counter private _tokenId;
 
     struct Package {
-        string packageId;
         uint256 insuranceAmount;
         uint256 randomRangeFrom;
         uint256 randomRangeTo;
+        string metadataUri;
     }
 
     Package[] private packages;
@@ -33,9 +33,12 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         bool used; // one time use
     }
 
+    mapping(uint256 => NftData) private nftData;
+
     uint256 public maxSupply = 5000;
 
-    mapping(uint256 => NftData) private nftData;
+    string unrevealedUri = "";
+    string usedUri = "";
 
     uint256 private randomSeed = 123456789;
     uint256 private timestampSalt = 123456789;
@@ -57,18 +60,43 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
          _;
     }
 
+    modifier nftsRevealed() {
+        require(randomSeedHasBeenSet == true, "NFTs are not revealed yet"); 
+         _;
+    }
+
     constructor () ERC721("Safe Exit Fund", "SEF") {
         _token = IGuilderFi(msg.sender);
 
-        packages.push(Package("Package A", 25 ether, 0, 24));
-        packages.push(Package("Package B", 5 ether, 25, 49));
-        packages.push(Package("Package C", 1 ether, 50, 74));
-        packages.push(Package("Package D", 10 ether, 75, 99));
+        packages.push(Package(25 ether, 0, 24, "")); // PACK A, index 0
+        packages.push(Package(5 ether, 25, 49, "")); // PACK B, index 1
+        packages.push(Package(1 ether, 50, 74, "")); // PACK C, index 2
+        packages.push(Package(10 ether, 75, 99, "")); // PACK D, index 3
     }
 
     // External function executed with every main contract transaction
     function execute() override external onlyToken {
         // TODO
+    }
+
+    function tokenURI(uint256 _nftId) public view virtual override returns (string memory) {
+        require(_exists(_nftId), "ERC721Metadata: URI query for nonexistent token");
+
+        if (randomSeedHasBeenSet == false) {
+            return unrevealedUri;
+        }
+
+        if (nftData[_nftId].used == true) {
+            return usedUri;
+        }
+
+        return packages[getPackageIndexFromNftId(_nftId)].metadataUri;
+    }
+
+    function setMetadataUri(uint256 _packIndex, string memory _uri) external onlyTokenOwner {
+        require(_packIndex <= packages.length, "NFT package index not found");
+
+        packages[_packIndex].metadataUri = _uri;
     }
 
     function mint(address _walletAddress) external onlyPresale {
@@ -78,23 +106,26 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         _tokenId.increment();
     }
 
-    // Gets the insurance amount of an NFT, and the total insurable
-    function getNftInsurance(uint256 _nftId) public view returns (uint256, uint256) {
-        uint256 tokenId = _tokenId.current();
-        require(_nftId <= tokenId, "NFT ID out of bounds");
-
-        if (nftData[_nftId].used == true) return (0,0);
-
+    function getPackageIndexFromNftId(uint256 _nftId) public view nftsRevealed returns (uint256) {
         // using timestamp salt & random seed & nftId we get a pseudo random number between 0 and 99
         uint256 randomNum = uint256(keccak256(abi.encodePacked(timestampSalt, randomSeed, _nftId))) % 100;
 
         for (uint i=0; i<packages.length; i++) {
             if (randomNum >= packages[i].randomRangeFrom && randomNum <= packages[i].randomRangeTo) {
-                return (nftData[_nftId].insuredAmount, packages[i].insuranceAmount);
+                return i;
             }
         }
 
-        return (0,0);
+        return 0;
+    }
+
+    // Gets the insurance amount of an NFT, and the total insurable
+    function getNftInsurance(uint256 _nftId) public view returns (uint256, uint256) {
+        require(_exists(_nftId), "ERC721Metadata: URI query for nonexistent token");
+
+        if (nftData[_nftId].used == true) return (0,0);
+
+        return (nftData[_nftId].insuredAmount, packages[getPackageIndexFromNftId(_nftId)].insuranceAmount);
     }
 
     function getTotalUserInsurance(address _walletAddress) external view returns (uint256, uint256) {
