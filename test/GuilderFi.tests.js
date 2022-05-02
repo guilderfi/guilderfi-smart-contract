@@ -16,6 +16,7 @@ let owner;
 let treasuryAccount;
 let lrfContract;
 let safeExitFundContract;
+let presaleContract;
 let account1;
 let account2;
 let account3;
@@ -128,6 +129,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     // contracts
     lrfContract = await ethers.getContractAt("LiquidityReliefFund", await token.lrf());
     safeExitFundContract = await ethers.getContractAt("SafeExitFund", await token.safeExitFund());
+    presaleContract = await ethers.getContractAt('Presale', await token.safeExitFund());
 
     const tx = await owner.sendTransaction({
       to: lrfContract.address,
@@ -143,180 +145,198 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     await token.connect(treasuryAccount).setAutoLiquidityFrequency(86400);
   });
 
-  it("Should mint 100m tokens", async function () {
-    // expected total supply = 100m (18 decimal places)
-    expect(await token.balanceOf(treasuryAccount.address)).to.equal(addZeroes("90000000", DECIMALS));
-    expect(await token.totalSupply()).to.equal(addZeroes("100000000", DECIMALS));
-  });
+  // it("Should mint 100m tokens", async function () {
+  //   // expected total supply = 100m (18 decimal places)
+  //   expect(await token.balanceOf(treasuryAccount.address)).to.equal(addZeroes("90000000", DECIMALS));
+  //   expect(await token.totalSupply()).to.equal(addZeroes("100000000", DECIMALS));
+  // });
 
-  it("Treasury should be able to add initial liquidity to liquidity pool", async function () {
-    // Allow DEX to transfer during presale
-    await token.connect(treasuryAccount).allowPreSaleTransfer(dexRouterAddress, true);
+  // it("Treasury should be able to add initial liquidity to liquidity pool", async function () {
+  //   // Allow DEX to transfer during presale
+  //   await token.connect(treasuryAccount).allowPreSaleTransfer(dexRouterAddress, true);
 
-    // Approve DEX router to transfer treasury's tokens
-    await token.connect(treasuryAccount).approve(dexRouterAddress, addZeroes("100000000", DECIMALS));
+  //   // Approve DEX router to transfer treasury's tokens
+  //   await token.connect(treasuryAccount).approve(dexRouterAddress, addZeroes("100000000", DECIMALS));
 
-    // Deposit 10 million tokens + 10 BNB into liquidity
-    await dexRouter.connect(treasuryAccount).addLiquidityETH(
-      token.address,
-      addZeroes("10000000", DECIMALS),
-      0,
-      0,
-      treasuryAccount.address,
-      (await ethers.provider.getBlock("latest")).timestamp + 100,
-      { value: addZeroes(10, 18) } // 10 BNB
-    );
+  //   // Deposit 10 million tokens + 10 BNB into liquidity
+  //   await dexRouter.connect(treasuryAccount).addLiquidityETH(
+  //     token.address,
+  //     addZeroes("10000000", DECIMALS),
+  //     0,
+  //     0,
+  //     treasuryAccount.address,
+  //     (await ethers.provider.getBlock("latest")).timestamp + 100,
+  //     { value: addZeroes(10, 18) } // 10 BNB
+  //   );
 
-    const tokensInLP = addZeroes("10000000", DECIMALS);
-    const ethInLP = addZeroes(10, 18);
-    const expectedLPtokens = calculateInitialLP(tokensInLP, ethInLP);
+  //   const tokensInLP = addZeroes("10000000", DECIMALS);
+  //   const ethInLP = addZeroes(10, 18);
+  //   const expectedLPtokens = calculateInitialLP(tokensInLP, ethInLP);
 
-    // Get LP token balance for owner
-    const LPtokenBalance = await dexPair.balanceOf(treasuryAccount.address);
+  //   // Get LP token balance for owner
+  //   const LPtokenBalance = await dexPair.balanceOf(treasuryAccount.address);
 
-    // Treasury should have LP tokens after adding liquidity
-    expect(LPtokenBalance).to.equal(expectedLPtokens);
+  //   // Treasury should have LP tokens after adding liquidity
+  //   expect(LPtokenBalance).to.equal(expectedLPtokens);
 
-    // Check eth/token reserves in DEX pair
-    const { ethReserves, tokenReserves } = await getLiquidityReserves();
-    expect(ethReserves).to.equal(addZeroes(10, 18));
-    expect(tokenReserves).to.equal(addZeroes("10000000", DECIMALS));
+  //   // Check eth/token reserves in DEX pair
+  //   const { ethReserves, tokenReserves } = await getLiquidityReserves();
+  //   expect(ethReserves).to.equal(addZeroes(10, 18));
+  //   expect(tokenReserves).to.equal(addZeroes("10000000", DECIMALS));
 
-    // await printStatus();
-  });
+  //   // await printStatus();
+  // });
 
-  it("Should allow treasury to transfer tokens during pre-sale", async function () {
-    await transferTokens(treasuryAccount, account1, addZeroes(1000, DECIMALS));
+  // it("Should allow treasury to transfer tokens during pre-sale", async function () {
+  //   await transferTokens(treasuryAccount, account1, addZeroes(1000, DECIMALS));
 
-    // no fees should be collected
-    expect(await token.balanceOf(account1.address)).to.equal(addZeroes(1000, DECIMALS));
-  });
+  //   // no fees should be collected
+  //   expect(await token.balanceOf(account1.address)).to.equal(addZeroes(1000, DECIMALS));
+  // });
 
-  it("Should block other accounts from transacting until trading is open", async function () {
-    try {
-      await transferTokens(account1, account2, addZeroes(100, DECIMALS));
-    } catch (error) {
-      expect(error.message).to.contain("Trading not open yet");
-    }
+  // it("Should block other accounts from transacting until trading is open", async function () {
+  //   try {
+  //     await transferTokens(account1, account2, addZeroes(100, DECIMALS));
+  //   } catch (error) {
+  //     expect(error.message).to.contain("Trading not open yet");
+  //   }
 
-    expect(await token.balanceOf(account1.address)).to.equal(addZeroes(1000, DECIMALS));
-    expect(await token.balanceOf(account2.address)).to.equal(addZeroes(0, DECIMALS));
+  //   expect(await token.balanceOf(account1.address)).to.equal(addZeroes(1000, DECIMALS));
+  //   expect(await token.balanceOf(account2.address)).to.equal(addZeroes(0, DECIMALS));
 
-    // await printStatus();
-  });
+  //   // await printStatus();
+  // });
 
-  it("Should open up trading and allow accounts to transact", async function () {
-    await token.connect(treasuryAccount).openTrade();
-    await token.connect(treasuryAccount).launchToken();
-    await transferTokens(account1, account2, addZeroes(100, DECIMALS));
-    expect(await token.balanceOf(account2.address)).to.equal(addZeroes(100, DECIMALS));
-    expect(await token.balanceOf(account1.address)).to.equal(addZeroes(900, DECIMALS));
+  // it("Should open up trading and allow accounts to transact", async function () {
+  //   await token.connect(treasuryAccount).openTrade();
+  //   await token.connect(treasuryAccount).launchToken();
+  //   await transferTokens(account1, account2, addZeroes(100, DECIMALS));
+  //   expect(await token.balanceOf(account2.address)).to.equal(addZeroes(100, DECIMALS));
+  //   expect(await token.balanceOf(account1.address)).to.equal(addZeroes(900, DECIMALS));
 
-    // await printStatus();
-  });
+  //   // await printStatus();
+  // });
 
-  it("Should apply buy fees when buying shares from exchange", async function () {
-    // account3 buys 100 tokens from DEX
-    await dexRouter.connect(account3).swapETHForExactTokens(
-      addZeroes(1000, DECIMALS), // 1000 tokens
-      [await dexRouter.WETH(), token.address],
-      account3.address,
-      (await ethers.provider.getBlock("latest")).timestamp + 100,
-      { value: BigNumber.from("10000000000000000") } // 0.001 ETH
-    );
+  // it("Should apply buy fees when buying shares from exchange", async function () {
+  //   // account3 buys 100 tokens from DEX
+  //   await dexRouter.connect(account3).swapETHForExactTokens(
+  //     addZeroes(1000, DECIMALS), // 1000 tokens
+  //     [await dexRouter.WETH(), token.address],
+  //     account3.address,
+  //     (await ethers.provider.getBlock("latest")).timestamp + 100,
+  //     { value: BigNumber.from("10000000000000000") } // 0.001 ETH
+  //   );
 
-    // check that fees have been taken
-    expect(await token.balanceOf(account3.address)).to.equal(addZeroes(870, DECIMALS));
-    expect(await token.balanceOf(token.address)).to.equal(addZeroes(80, DECIMALS));
-    expect(await token.balanceOf(await token.autoLiquidityEngine())).to.equal(addZeroes(50, DECIMALS));
+  //   // check that fees have been taken
+  //   expect(await token.balanceOf(account3.address)).to.equal(addZeroes(870, DECIMALS));
+  //   expect(await token.balanceOf(token.address)).to.equal(addZeroes(80, DECIMALS));
+  //   expect(await token.balanceOf(await token.autoLiquidityEngine())).to.equal(addZeroes(50, DECIMALS));
 
-    // await printStatus();
-  });
+  //   // await printStatus();
+  // });
 
-  it("Should apply sell fees when selling shares to exchange", async function () {
-    await token.connect(account3).approve(dexRouter.address, BigNumber.from("1000000000000000000000000000000000000"));
+  // it("Should apply sell fees when selling shares to exchange", async function () {
+  //   await token.connect(account3).approve(dexRouter.address, BigNumber.from("1000000000000000000000000000000000000"));
 
-    // sell 90 tokens to DEX
-    await dexRouter.connect(account3).swapExactTokensForETHSupportingFeeOnTransferTokens(
-      addZeroes(90, DECIMALS), // 100 tokens,
-      0, // minimum ETH out
-      [token.address, await dexRouter.WETH()], // pair
-      account3.address, // recipient
-      (await ethers.provider.getBlock("latest")).timestamp + 100
-    );
+  //   // sell 90 tokens to DEX
+  //   await dexRouter.connect(account3).swapExactTokensForETHSupportingFeeOnTransferTokens(
+  //     addZeroes(90, DECIMALS), // 100 tokens,
+  //     0, // minimum ETH out
+  //     [token.address, await dexRouter.WETH()], // pair
+  //     account3.address, // recipient
+  //     (await ethers.provider.getBlock("latest")).timestamp + 100
+  //   );
 
-    // await printStatus();
+  //   // await printStatus();
 
-    // sell 10 tokens to DEX
-    await dexRouter.connect(account3).swapExactTokensForETHSupportingFeeOnTransferTokens(
-      addZeroes(10, DECIMALS), // 100 tokens,
-      0, // minimum ETH out
-      [token.address, await dexRouter.WETH()], // pair
-      account3.address, // recipient
-      (await ethers.provider.getBlock("latest")).timestamp + 100
-    );
+  //   // sell 10 tokens to DEX
+  //   await dexRouter.connect(account3).swapExactTokensForETHSupportingFeeOnTransferTokens(
+  //     addZeroes(10, DECIMALS), // 100 tokens,
+  //     0, // minimum ETH out
+  //     [token.address, await dexRouter.WETH()], // pair
+  //     account3.address, // recipient
+  //     (await ethers.provider.getBlock("latest")).timestamp + 100
+  //   );
 
-    // check that sell fees have been taken
-    // expect(await token.balanceOf(account3.address)).to.equal(addZeroes(770, DECIMALS));
-    // expect(await token.balanceOf(token.address)).to.equal(addZeroes(12, DECIMALS));
-    // expect(await token.balanceOf(liquidityAddress)).to.equal(addZeroes(55, DECIMALS));
+  //   // check that sell fees have been taken
+  //   // expect(await token.balanceOf(account3.address)).to.equal(addZeroes(770, DECIMALS));
+  //   // expect(await token.balanceOf(token.address)).to.equal(addZeroes(12, DECIMALS));
+  //   // expect(await token.balanceOf(liquidityAddress)).to.equal(addZeroes(55, DECIMALS));
 
-    // await printStatus();
-  });
+  //   // await printStatus();
+  // });
 
-  it("Rebase should increase each account balance by 0.016% after 12 minutes", async function () {
-    // move time forward 12 minutes
-    await ethers.provider.send("evm_increaseTime", [720]);
-    await ethers.provider.send("evm_mine");
+  // it("Rebase should increase each account balance by 0.016% after 12 minutes", async function () {
+  //   // move time forward 12 minutes
+  //   await ethers.provider.send("evm_increaseTime", [720]);
+  //   await ethers.provider.send("evm_mine");
 
-    expect(await token.pendingRebases()).to.equal(1);
+  //   expect(await token.pendingRebases()).to.equal(1);
 
-    // trigger rebase
-    await token.connect(treasuryAccount).rebase();
+  //   // trigger rebase
+  //   await token.connect(treasuryAccount).rebase();
 
-    // check that rebase has been applied
-    expect(await token.balanceOf(account2.address)).to.equal(BigNumber.from("100016030912247000000"));
-    expect(await token.balanceOf(account1.address)).to.equal(BigNumber.from("900144278210223000000"));
-    expect(await token.lastEpoch()).to.equal(1);
-    expect(await token.pendingRebases()).to.equal(0);
-  });
+  //   // check that rebase has been applied
+  //   expect(await token.balanceOf(account2.address)).to.equal(BigNumber.from("100016030912247000000"));
+  //   expect(await token.balanceOf(account1.address)).to.equal(BigNumber.from("900144278210223000000"));
+  //   expect(await token.lastEpoch()).to.equal(1);
+  //   expect(await token.pendingRebases()).to.equal(0);
+  // });
 
-  it("Rebase should perform rebases in max batch sizes", async function () {
-    // move time forward by 100 rebases)
-    await ethers.provider.send("evm_increaseTime", [720 * 100]);
-    await ethers.provider.send("evm_mine");
+  // it("Rebase should perform rebases in max batch sizes", async function () {
+  //   // move time forward by 100 rebases)
+  //   await ethers.provider.send("evm_increaseTime", [720 * 100]);
+  //   await ethers.provider.send("evm_mine");
 
-    expect(await token.pendingRebases()).to.equal(100);
+  //   expect(await token.pendingRebases()).to.equal(100);
 
-    // trigger rebase
-    await token.connect(treasuryAccount).rebase();
+  //   // trigger rebase
+  //   await token.connect(treasuryAccount).rebase();
 
-    expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("100659379119725000000"), 1000000);
-    expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("905934412077523000000"), 1000000);
-    expect(await token.lastEpoch()).to.equal(41);
-    expect(await token.pendingRebases()).to.equal(60);
+  //   expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("100659379119725000000"), 1000000);
+  //   expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("905934412077523000000"), 1000000);
+  //   expect(await token.lastEpoch()).to.equal(41);
+  //   expect(await token.pendingRebases()).to.equal(60);
 
-    await token.connect(treasuryAccount).rebase();
-    expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("101306865632955000000"), 2500000);
-    expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("911761790696595000000"), 2500000);
-    expect(await token.lastEpoch()).to.equal(81);
-    expect(await token.pendingRebases()).to.equal(20);
+  //   await token.connect(treasuryAccount).rebase();
+  //   expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("101306865632955000000"), 2500000);
+  //   expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("911761790696595000000"), 2500000);
+  //   expect(await token.lastEpoch()).to.equal(81);
+  //   expect(await token.pendingRebases()).to.equal(20);
 
-    await token.connect(treasuryAccount).rebase();
-    expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("101632169066129000000"), 5000000);
-    expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("914689521595163000000"), 5000000);
-    expect(await token.lastEpoch()).to.equal(101);
-    expect(await token.pendingRebases()).to.equal(0);
+  //   await token.connect(treasuryAccount).rebase();
+  //   expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("101632169066129000000"), 5000000);
+  //   expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("914689521595163000000"), 5000000);
+  //   expect(await token.lastEpoch()).to.equal(101);
+  //   expect(await token.pendingRebases()).to.equal(0);
 
-    try {
-      await token.connect(treasuryAccount).rebase();
-    } catch (error) {
-      expect(error.message).to.contain("No pending rebases");
-    }
+  //   try {
+  //     await token.connect(treasuryAccount).rebase();
+  //   } catch (error) {
+  //     expect(error.message).to.contain("No pending rebases");
+  //   }
 
-    expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("101632169066129000000"), 5000000);
-    expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("914689521595163000000"), 5000000);
-    expect(await token.lastEpoch()).to.equal(101);
-    expect(await token.pendingRebases()).to.equal(0);
-  });
+  //   expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("101632169066129000000"), 5000000);
+  //   expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("914689521595163000000"), 5000000);
+  //   expect(await token.lastEpoch()).to.equal(101);
+  //   expect(await token.pendingRebases()).to.equal(0);
+  // });
+
+  it("set presale contract addrees", async () => {
+    await safeExitFundContract.connect(treasuryAccount).setPresaleContractAddress(presaleContract.address)
+  })
+  it("receives NFTs from presale contract", async () => {
+    const nftBal0 = Number(await safeExitFundContract.balanceOf(account1.address))
+    await presaleContract.buyTokens(safeExitFundContract.address, account1.address);
+    const nftBal1 =  Number(await safeExitFundContract.balanceOf(account1.address))
+
+    console.log(nftBal0)
+    
+    expect(nftBal1).to.equal(nftBal0 + 1)
+  })
+  it("random seed works", async () => {})
+  it("metadata works", async () => {})
+  it("insurance add works", async () => {})
+  it("insurance redeem works", async () => {})
+  it("insurance drain works", async () => {})
 });

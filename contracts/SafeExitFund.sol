@@ -5,7 +5,7 @@ pragma solidity ^0.8.10;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/utils/counters.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 
 
 import "./interfaces/IGuilderFi.sol";
@@ -43,6 +43,8 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     uint256 private timestampSalt = 123456789;
     bool private randomSeedHasBeenSet = false;
 
+    address private presaleContractAddress;
+
     // GuilderFi token contract address
     IGuilderFi internal _token;
 
@@ -55,7 +57,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     }
 
     modifier onlyPresale() {
-        // require(msg.sender == address(_presale), "Sender is not token owner"); // TODO
+        require(msg.sender == presaleContractAddress, "Sender is not presale contract"); 
          _;
     }
 
@@ -134,7 +136,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         address from,
         address to,
         uint256 tokenId
-    ) internal virtual override(ERC721, ERC721Pausable) {
+    ) internal virtual override {
         super._beforeTokenTransfer(from, to, tokenId);
 
         drainNft(tokenId);
@@ -243,6 +245,10 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
             // ensure random seed can only be set once
             randomSeedHasBeenSet = true;
         }
+    }
+
+    function setPresaleContractAddress(address _address) external onlyTokenOwner {
+        presaleContractAddress = _address;
     }
 
     function withdraw(uint256 amount) external override onlyTokenOwner {
