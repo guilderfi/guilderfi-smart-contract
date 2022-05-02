@@ -4,13 +4,12 @@ pragma solidity 0.8.10;
 
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-// TODO import openzeppelin IERC1155
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 
 import "./interfaces/IGuilderFi.sol";
 import "./interfaces/ISafeExitFund.sol";
 
-contract SafeExitFund is ISafeExitFund {
+contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
     using SafeMath for uint256;
 
@@ -37,7 +36,7 @@ contract SafeExitFund is ISafeExitFund {
         require(msg.sender == address(_token.getOwner()), "Sender is not token owner"); _;
     }
 
-    constructor () {
+    constructor () ERC721Enumerable("Safe Exit Fund", "SEF") {
         _token = IGuilderFi(msg.sender);
 
         packages.push(Package("Package A", 25 ether, 0, 24));
