@@ -6,6 +6,8 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/utils/counters.sol";
+
 
 import "./interfaces/IGuilderFi.sol";
 import "./interfaces/ISafeExitFund.sol";
@@ -13,6 +15,9 @@ import "./interfaces/ISafeExitFund.sol";
 contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
     using SafeMath for uint256;
+
+    using Counters for Counters.Counter;
+    Counters.Counter private _tokenId;
 
     struct Package {
         string packageId;
@@ -27,6 +32,8 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         uint256 insuredAmount;
         bool used; // one time use
     }
+
+    uint256 public maxSupply = 5000;
 
     mapping(uint256 => NftData) private nftData;
 
@@ -45,6 +52,11 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         require(msg.sender == address(_token.getOwner()), "Sender is not token owner"); _;
     }
 
+    modifier onlyPresale() {
+        // require(msg.sender == address(_presale), "Sender is not token owner"); // TODO
+         _;
+    }
+
     constructor () ERC721("Safe Exit Fund", "SEF") {
         _token = IGuilderFi(msg.sender);
 
@@ -57,6 +69,13 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     // External function executed with every main contract transaction
     function execute() override external onlyToken {
         // TODO
+    }
+
+    function mint(address _walletAddress) external onlyPresale {
+        uint256 tokenId = _tokenId.current();
+        require(tokenId < maxSupply, "Can't mint more NFTs");
+        _mint(_walletAddress, tokenId);
+        _tokenId.increment();
     }
 
     // Gets the insurance amount of an NFT, and the total insurable
