@@ -76,6 +76,12 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         // TODO
     }
 
+    /**
+     * Gets a wallet address and an amount of coins to insure. 
+     * Tries to fill all the NFTs in the user's wallet insuring the amount.
+     * 
+     * Called by the token contract when a "buy" event occurs
+     */
     function fillNftsInWallet(address _walletAddress, uint256 _amount) external onlyToken {
         for (uint256 i = 0; i < balanceOf(_walletAddress); i++) {
             if (_amount <= 0) return;
@@ -97,6 +103,11 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         }
     }
 
+    /**
+     * Drains all the insured amount for a user.
+     * 
+     * Called by the token contract when a user transfers or sells any token.
+     */
     function drainNftsInWallet(address _walletAddress) external onlyToken {
         for (uint256 i = 0; i < balanceOf(_walletAddress); i++) {
             uint256 nftId = tokenOfOwnerByIndex(_walletAddress, i);
@@ -104,6 +115,11 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         }
     }
 
+    /**
+     * Use all the NFTs in a user's wallet giving the insured amount to the user.
+     *
+     * Called by the user in case he wants the insured amount back
+     */
     function useNftsInWallet() external {
         uint256 insuranceToRedeem = 0;
 
@@ -115,6 +131,8 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         }
 
         payable(msg.sender).transfer(insuranceToRedeem);
+
+        // TODO destroy all tokens in user's wallet.
     }
 
     function tokenURI(uint256 _nftId) public view virtual override returns (string memory) {
@@ -144,6 +162,10 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         _tokenId.increment();
     }
 
+    /**
+     * Gets the package index given a token ID. 
+     * Works with a random procedure after the nfts are revealed
+     */
     function getPackageIndexFromNftId(uint256 _nftId) public view nftsRevealed returns (uint256) {
         // using timestamp salt & random seed & nftId we get a pseudo random number between 0 and 99
         uint256 randomNum = uint256(keccak256(abi.encodePacked(timestampSalt, randomSeed, _nftId))) % 100;
@@ -157,7 +179,9 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         return 0;
     }
 
-    // Gets the insurance amount of an NFT, and the total insurable
+    /**
+     * Gets the insurance amount of an NFT, and the total insurable
+     */     
     function getNftInsurance(uint256 _nftId) public view returns (uint256, uint256) {
         require(_exists(_nftId), "ERC721Metadata: URI query for nonexistent token");
 
@@ -166,6 +190,9 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         return (nftData[_nftId].insuredAmount, packages[getPackageIndexFromNftId(_nftId)].insuranceAmount);
     }
 
+    /**
+     * Gets the total insured amount of a user, and the total insurable
+     */
     function getTotalUserInsurance(address _walletAddress) external view returns (uint256, uint256) {
         uint256 insuredAmount = 0;
         uint256 totalInsurable = 0;
