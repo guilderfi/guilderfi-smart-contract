@@ -32,6 +32,8 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
     mapping(uint256 => NftData) private nftData;
 
+    uint256 private bonus = 625; // 6.25%
+
     uint256 public maxSupply = 5000;
 
     string unrevealedUri = "";
@@ -142,6 +144,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
             nftData[nftId].used = true;
         }
 
+        insuranceToRedeem = insuranceToRedeem * bonus / 100;
         payable(msg.sender).transfer(insuranceToRedeem);
 
         // TODO destroy all tokens in user's wallet.
