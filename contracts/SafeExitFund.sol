@@ -122,11 +122,19 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
      * Drain the insured amount of an NFT
      *
      * Called on sell / transfer
-     *
-     * TODO add on _beforeTransfer
      */
     function drainNft(uint256 _nftId) internal {
         nftData[nftId].insuredAmount = 0;
+    }
+
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId
+    ) internal virtual override(ERC721, ERC721Pausable) {
+        super._beforeTokenTransfer(from, to, tokenId);
+
+        drainNft(tokenId);
     }
 
     /**
