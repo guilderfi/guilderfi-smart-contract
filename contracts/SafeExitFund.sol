@@ -45,6 +45,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     bool private randomSeedHasBeenSet = false;
 
     address private presaleContractAddress;
+    mapping(address => uint256) private presaleBuyAmount;
 
     // GuilderFi token contract address
     IGuilderFi internal _token;
@@ -190,6 +191,23 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         require(tokenId < maxSupply, "Can't mint more NFTs");
         _mint(_walletAddress, tokenId);
         _tokenId.increment();
+    }
+
+    /**
+     * Saves the insurable amount of coin for the presale buy.
+     * 
+     * used to initialize the insured amount after the presale
+     */
+    function setPresaleBuyAmount(address _walletAddress, uint256 _amount) external onlyPresale {
+        presaleBuyAmount[_walletAddress] = _amount;
+    }
+
+    /**
+     * init the insured amount after the presale
+     */
+    function initInsuredAmountAfterPresale(address _walletAddress) external {
+        fillNftsInWallet(_walletAddress, presaleBuyAmount[_walletAddress]);
+        presaleBuyAmount[_walletAddress] = 0;
     }
 
     /**
