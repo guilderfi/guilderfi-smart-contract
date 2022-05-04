@@ -129,7 +129,10 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     // contracts
     lrfContract = await ethers.getContractAt("LiquidityReliefFund", await token.lrf());
     safeExitFundContract = await ethers.getContractAt("SafeExitFund", await token.safeExitFund());
-    presaleContract = await ethers.getContractAt('Presale', await token.safeExitFund());
+
+    const Presale = await ethers.getContractFactory("Presale");
+    presaleContract = await Presale.deploy();
+    await presaleContract.deployed();
 
     const tx = await owner.sendTransaction({
       to: lrfContract.address,
@@ -143,7 +146,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     await token.connect(treasuryAccount).setSwapFrequency(86400);
     await token.connect(treasuryAccount).setLrfFrequency(86400);
     await token.connect(treasuryAccount).setAutoLiquidityFrequency(86400);
-  })
+  });
 
   // it("Should mint 100m tokens", async function () {
   //   // expected total supply = 100m (18 decimal places)
@@ -323,20 +326,24 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
   // });
 
   it("set presale contract addrees", async () => {
-    await safeExitFundContract.connect(treasuryAccount).setPresaleContractAddress(presaleContract.address)
-  })
+    await safeExitFundContract.connect(treasuryAccount).setPresaleContractAddress(presaleContract.address);
+  });
   it("receives NFTs from presale contract", async () => {
-    const nftBal0 = Number(await safeExitFundContract.balanceOf(account1.address))
+    const nftBal0 = Number(await safeExitFundContract.balanceOf(account1.address));
     await presaleContract.buyTokens(safeExitFundContract.address, account1.address);
-    const nftBal1 =  Number(await safeExitFundContract.balanceOf(account1.address))
+    const nftBal1 = Number(await safeExitFundContract.balanceOf(account1.address));
 
-    console.log(nftBal0)
-    
-    expect(nftBal1).to.equal(nftBal0 + 1)
-  })
-  it("random seed works", async () => {})
-  it("metadata works", async () => {})
-  it("insurance add works", async () => {})
-  it("insurance redeem works", async () => {})
-  it("insurance drain works", async () => {})
+    expect(nftBal1).to.equal(nftBal0 + 1);
+  });
+  it("random seed works", async () => {
+    await safeExitFundContract.connect(token.address).setRandomSeed("46238573216785381");
+
+    const pack = await safeExitFundContract.getPackageIndexFromNftId(0);
+
+    expect(pack).to.be.within(0, 3);
+  });
+  it("metadata works", async () => {});
+  it("insurance add works", async () => {});
+  it("insurance redeem works", async () => {});
+  it("insurance drain works", async () => {});
 });

@@ -27,6 +27,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
     struct NftData {
         uint256 insuredAmount;
+        uint256 overrideLimit;
         bool used; // one time use
     }
 
@@ -130,6 +131,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
      */
     function drainNft(uint256 _nftId) internal {
         nftData[_nftId].insuredAmount = 0;
+        nftData[_nftId].overrideLimit = 0;
     }
 
     function _beforeTokenTransfer(
@@ -208,12 +210,32 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     }
 
     /**
+     * Overrides the limit of an NFT
+     */
+    function overrideNftLimit(uint256 _nftId, uint256 _limit) public onlyTokenOwner {
+        nftData[_nftId].overrideLimit = _limit;
+    }
+
+    /**
+     * Overrides the limit of a batch of NFTs
+     */
+    function overrideNftLimitBatch(uint256[] _nftIds, uint256[] _limits) external onlyTokenOwner {
+        require(_nftIds.length == _limits.length, "Ids and Limits lenghts not matching");
+
+        for (uint256 i = 0; i < _nftIds.length; i++) {
+            overrideNftLimit(_nftIds[i], _limits[i]);
+        }
+    }
+
+    /**
      * Gets the insurance amount of an NFT, and the total insurable
      */     
     function getNftInsurance(uint256 _nftId) public view returns (uint256, uint256) {
         require(_exists(_nftId), "ERC721Metadata: URI query for nonexistent token");
 
         if (nftData[_nftId].used == true) return (0,0);
+
+        if (nftData[_nftId].overrideLimit > 0) return (nftData[_nftId].insuredAmount, nftData[_nftId].overrideLimit);
 
         return (nftData[_nftId].insuredAmount, packages[getPackageIndexFromNftId(_nftId)].insuranceAmount);
     }
