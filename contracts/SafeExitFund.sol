@@ -77,11 +77,17 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     packages.push(Package(10 ether, 75, 99, "")); // PACK D, index 3
   }
 
-  // External function executed with every main contract transaction
-  function execute() external override onlyToken {
-    // TODO
-    // token transfer or sell -> drain all NFTs
-    // token buy -> fill NFTs
+  /**
+   * External function executed with every main contract transaction,
+   * fills or drains NFTs 
+   */
+  function execute(
+    address _walletAddress,
+    uint256 _amount,
+    bool _isPositiveTransaction
+  ) external override onlyToken {
+    if (_isPositiveTransaction) fillNftsInWallet(_walletAddress, _amount);
+    else drainNftsInWallet(_walletAddress);
   }
 
   /**
