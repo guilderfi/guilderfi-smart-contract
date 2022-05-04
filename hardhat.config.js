@@ -80,7 +80,7 @@ module.exports = {
       chainId: 23,
       accounts,
       forking: {
-        url: "https://bsc-dataseed.binance.org/", // process.env.FORK_URL,
+        url: process.env.FORK_URL,
       },
     },
     localhost: {

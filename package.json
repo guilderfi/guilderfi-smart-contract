@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@openzeppelin/contracts": "^4.3.2",
+    "chai-bignumber": "^3.0.0",
     "csv-parse": "^5.0.4",
     "hardhat-ethernal": "^0.3.11",
     "solidity-parser": "^0.4.0"

@@ -57,6 +57,9 @@ async function printStatus() {
   console.log();
   console.log(`Token fees coll:  ${ethers.utils.formatEther(feesCollected, { comify: true })}`);
   console.log(`Liquidity tokens: ${ethers.utils.formatEther(liquidityTokens, { comify: true })}`);
+  console.log(
+    `Liquidity eng ETH: ${ethers.utils.formatEther(await ethers.provider.getBalance(await token.autoLiquidityEngine()), { comify: true })}`
+  );
   console.log();
   console.log(`Safe exit fund:   ${ethers.utils.formatEther(safeExitFundBalance, { comify: true })}`);
 }
@@ -101,7 +104,6 @@ async function sellTokens(account, tokenAmount) {
     account.address, // recipient
     (await ethers.provider.getBlock("latest")).timestamp + 100
   );
-
 }
 
 async function getLiquidityReserves() {
@@ -121,8 +123,16 @@ async function getLiquidityReserves() {
     };
   }
 
-  returnVal.tokenPrice = returnVal.ethReserves.div(returnVal.tokenReserves);
+  returnVal.tokenPrice = returnVal.ethReserves / returnVal.tokenReserves;
   return returnVal;
+}
+
+async function calculateEthToReceive(tokenAmount) {
+  const reserves = await getLiquidityReserves();
+  const amountInWithFee = tokenAmount.mul(9975);
+  const numerator = amountInWithFee.mul(reserves.ethReserves);
+  const denominator = reserves.tokenReserves.mul(10000).add(amountInWithFee);
+  return numerator.div(denominator);
 }
 
 function calculateInitialLP(tokenA, tokenB) {
@@ -174,7 +184,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
   it("Should mint 100m tokens", async function () {
     // send 1 eth to LRF
-    transferEth(owner, lrfContract, ethers.utils.parseEther("1.0"));
+    // transferEth(owner, lrfContract, ethers.utils.parseEther("1.0"));
 
     // initial distribution
     await transferTokens(treasuryAccount, preSale, addZeroes(27000000, 18));
@@ -302,7 +312,6 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
   });
 
   it("Should apply sell fees when selling shares to exchange", async function () {
-
     // set fees to 25.1% - expect error
     try {
       await token.connect(treasuryAccount).setFees(
@@ -349,13 +358,58 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
   });
 
   it("Should swap tokens collected for ETH", async function () {
+    // set frequency to zero to force swap on next transaction
     await token.connect(treasuryAccount).setSwapFrequency(0);
 
+    // record balances
+    const treasuryEthBalanceBefore = await ethers.provider.getBalance(treasuryAccount.address);
+    const lrfEthBalanceBefore = await ethers.provider.getBalance(lrfContract.address);
+    const safeExitEthBalanceBefore = await ethers.provider.getBalance(safeExitFundContract.address);
+
+    // calculate how much eth received when swaping 160 tokens
+    expect(await token.balanceOf(token.address)).to.equal(addZeroes(160, DECIMALS));
+    const ethToReceive = await calculateEthToReceive(addZeroes(160, DECIMALS));
+
+    // sell tokens
     await token.connect(account2).approve(dexRouterAddress, addZeroes("999999999999", DECIMALS));
     await sellTokens(account2, addZeroes(100, DECIMALS));
 
+    // record balances after
+    const treasuryEthBalanceAfter = await ethers.provider.getBalance(treasuryAccount.address);
+    const lrfEthBalanceAfter = await ethers.provider.getBalance(lrfContract.address);
+    const safeExitEthBalanceAfter = await ethers.provider.getBalance(safeExitFundContract.address);
+
+    // check that balances have been updated
     expect(await token.balanceOf(account2.address)).to.equal(0);
     expect(await token.balanceOf(token.address)).to.equal(addZeroes(10, DECIMALS));
+
+    const treasuryEthDifference = treasuryEthBalanceAfter.sub(treasuryEthBalanceBefore);
+    const lrfEthDifference = lrfEthBalanceAfter.sub(lrfEthBalanceBefore);
+    const safeExitEthDifference = safeExitEthBalanceAfter.sub(safeExitEthBalanceBefore);
+
+    // check balances have increased by appropriate share (within 0.000000000000000001% accuracy to account for rounding)
+    expect(treasuryEthDifference).to.be.closeTo(ethToReceive.mul(55).div(160), 1);
+    expect(lrfEthDifference).to.be.closeTo(ethToReceive.mul(47).div(160), 1);
+    expect(safeExitEthDifference).to.be.closeTo(ethToReceive.mul(58).div(160), 1);
+  });
+
+  it("Auto liquidity engine should should add liquidity to exchange", async function () {
+    // set frequency to zero to force auto liquidity on next transaction
+    await token.connect(treasuryAccount).setSwapFrequency(84600);
+    await token.connect(treasuryAccount).setAutoLiquidityFrequency(0);
+
+    const reservesBefore = await getLiquidityReserves();
+
+    // do a transaction
+    await token.connect(account3).transfer(account2.address, addZeroes(100, DECIMALS));
+
+    // check dex reserves after transaction
+    const reservesAfter = await getLiquidityReserves();
+    const ethReservesDifference = reservesAfter.ethReserves.sub(reservesBefore.ethReserves);
+    const tokenReservesDifference = reservesAfter.tokenReserves.sub(reservesBefore.tokenReserves);
+
+    expect(ethReservesDifference).to.equal(0);
+    expect(tokenReservesDifference).to.be.closeTo(addZeroes(80, DECIMALS), addZeroes(1, DECIMALS));
   });
 
   /*

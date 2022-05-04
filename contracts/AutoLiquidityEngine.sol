@@ -105,7 +105,6 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
                 block.timestamp
             );
         }
-
     }
 
     function getRouter() internal view returns (IDexRouter) {

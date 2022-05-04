@@ -9,6 +9,7 @@ module.exports = {
   extends: ["standard", "prettier"],
   rules: {
     "prettier/prettier": "error",
+    "no-unused-expressions": "off",
   },
   parserOptions: {
     ecmaVersion: 12,
