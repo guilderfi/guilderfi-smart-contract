@@ -8,6 +8,6 @@ contract Presale {
     constructor() {}
 
     function buyTokens(address _tokenAddress, address wallet) public {
-        ISafeExitFund(_tokenAddress).mint(wallet);
+        ISafeExitFund(_tokenAddress).mint(address(wallet));
     }
 }

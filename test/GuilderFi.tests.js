@@ -143,7 +143,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     await token.connect(treasuryAccount).setSwapFrequency(86400);
     await token.connect(treasuryAccount).setLrfFrequency(86400);
     await token.connect(treasuryAccount).setAutoLiquidityFrequency(86400);
-  });
+  })
 
   // it("Should mint 100m tokens", async function () {
   //   // expected total supply = 100m (18 decimal places)
