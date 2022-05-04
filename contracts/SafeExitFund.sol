@@ -165,7 +165,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
       nftData[nftId].used = true;
     }
 
-    insuranceToRedeem = (insuranceToRedeem * bonus) / 100;
+    insuranceToRedeem = insuranceToRedeem + (insuranceToRedeem * bonus) / 100;
     payable(msg.sender).transfer(insuranceToRedeem);
 
     // TODO destroy all tokens in user's wallet.
