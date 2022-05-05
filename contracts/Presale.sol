@@ -89,8 +89,8 @@ contract Presale {
 
     if (!isPresaleOpen) {
       if (customBuyLimit[msg.sender] > 0) {
-        amount = msg.value * 2000;
         require(msg.value >= 25 ether && msg.value <= customBuyLimit[msg.sender], "Value not consistent with presale contraints");
+        amount = msg.value * 2000;
       } else require(msg.value >= 0.5 ether && msg.value <= 25 ether, "Value not consistent with presale contraints");
 
       if (msg.value >= 5 ether && msg.value <= 25 ether) {
