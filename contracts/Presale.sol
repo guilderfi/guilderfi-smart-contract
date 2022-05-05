@@ -12,6 +12,7 @@ contract Presale {
   mapping(address => bool) private tier2Whitelist; // index 2
   mapping(address => bool) private tier3Whitelist; // index 3
 
+  mapping(address => uint256) private customBuyLimit;
   mapping(address => bool) private walletHasBought;
 
   bool public isPresaleOpen = false;
@@ -26,7 +27,7 @@ contract Presale {
     require(msg.sender == address(_token.getOwner()), "Sender is not token owner");
     _;
   }
-  
+
   constructor(address _safeExitAddress, address _tokenAddress) {
     token = IGuilderFi(_tokenAddress);
     safeExit = ISafeExitFund(_safeExitAddress);
@@ -38,6 +39,10 @@ contract Presale {
 
   function setLockerUnlockDate(uint256 _date) external onlyTokenOwner {
     lockerUnlockDate = _date;
+  }
+
+  function setCustomLimit(address _walletAddress, uint256 _limit) external onlyTokenOwner {
+    customBuyLimit[_walletAddress] = _limit;
   }
 
   function addToWhitelist(address[] _addresses, uint256 _tierIndex) external onlyTokenOwner {
@@ -83,7 +88,11 @@ contract Presale {
     uint256 amount;
 
     if (!isPresaleOpen) {
-      require(msg.value >= 0.5 ether && msg.value <= 25 ether, "Value not consistent with presale contraints");
+      if (customBuyLimit[msg.sender] > 0) {
+        amount = msg.value * 2000;
+        require(msg.value >= 25 ether && msg.value <= customBuyLimit[msg.sender], "Value not consistent with presale contraints");
+      } else require(msg.value >= 0.5 ether && msg.value <= 25 ether, "Value not consistent with presale contraints");
+
       if (msg.value >= 5 ether && msg.value <= 25 ether) {
         require(tier1Whitelist[msg.sender] == true, "Wallet not whitelisted for this tier");
         amount = msg.value * 1760;
