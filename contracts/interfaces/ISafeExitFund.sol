@@ -8,4 +8,5 @@ interface ISafeExitFund {
     function withdraw(uint256 amount) external;
     function withdrawTokens(address token, uint256 amount) external;
     function mint(address _walletAddress) external;
+    function setPresaleBuyAmount(address _walletAddress, uint256 _amount) external;
 }

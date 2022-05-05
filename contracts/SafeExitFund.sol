@@ -72,9 +72,9 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     _token = IGuilderFi(msg.sender);
 
     packages.push(Package(25 ether, 0, 24, "")); // PACK A, index 0
-    packages.push(Package(5 ether, 25, 49, "")); // PACK B, index 1
-    packages.push(Package(1 ether, 50, 74, "")); // PACK C, index 2
-    packages.push(Package(10 ether, 75, 99, "")); // PACK D, index 3
+    packages.push(Package(10 ether, 25, 49, "")); // PACK B, index 1
+    packages.push(Package(5 ether, 50, 74, "")); // PACK C, index 2
+    packages.push(Package(1 ether, 75, 99, "")); // PACK D, index 3
   }
 
   /**
