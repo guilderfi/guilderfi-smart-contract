@@ -56,5 +56,7 @@ contract Presale {
 
     safeExit.mint(msg.sender);
     safeExit.setPresaleBuyAmount(msg.sender, msg.value);
+
+    walletHasBought[msg.sender] = true;
   }
 }
