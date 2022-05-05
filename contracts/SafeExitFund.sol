@@ -46,15 +46,15 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   mapping(address => uint256) private presaleBuyAmount;
 
   // GuilderFi token contract address
-  IGuilderFi internal _token;
+  IGuilderFi internal token;
 
   modifier onlyToken() {
-    require(msg.sender == address(_token), "Sender is not token contract");
+    require(msg.sender == address(token), "Sender is not token contract");
     _;
   }
 
   modifier onlyTokenOwner() {
-    require(msg.sender == address(_token.getOwner()), "Sender is not token owner");
+    require(msg.sender == address(token.getOwner()), "Sender is not token owner");
     _;
   }
 
@@ -69,7 +69,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   }
 
   constructor() ERC721("Safe Exit Fund", "SEF") {
-    _token = IGuilderFi(msg.sender);
+    token = IGuilderFi(msg.sender);
 
     packages.push(Package(25 ether, 0, 24, "")); // PACK A, index 0
     packages.push(Package(10 ether, 25, 49, "")); // PACK B, index 1
@@ -287,12 +287,12 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     presaleContractAddress = _address;
   }
 
-  function withdraw(uint256 amount) external override onlyTokenOwner {
-    payable(msg.sender).transfer(amount);
+  function withdraw(uint256 _amount) external override onlyTokenOwner {
+    payable(msg.sender).transfer(_amount);
   }
 
-  function withdrawTokens(address token, uint256 amount) external override onlyTokenOwner {
-    IERC20(token).transfer(msg.sender, amount);
+  function withdrawTokens(address _token, uint256 _amount) external override onlyTokenOwner {
+    IERC20(_token).transfer(msg.sender, _amount);
   }
 
   receive() external payable {}

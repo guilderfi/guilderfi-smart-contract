@@ -59,4 +59,12 @@ contract Presale {
 
     walletHasBought[msg.sender] = true;
   }
+
+  function withdraw(uint256 _amount) external override onlyTokenOwner {
+    payable(msg.sender).transfer(_amount);
+  }
+
+  function withdrawTokens(address _token, uint256 _amount) external override onlyTokenOwner {
+    IERC20(_token).transfer(msg.sender, _amount);
+  }
 }
