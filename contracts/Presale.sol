@@ -81,12 +81,16 @@ contract Presale {
       amount = msg.value * 1400;
     }
 
-    ILocker locker = new Locker();
-    locker.deposit(amount / 2);
+    // create and save locker
+    ILocker locker = new Locker(address(this), address(token));
     lockers[msg.sender] = locker;
+    // deposit half tokens into the locker
+    locker.deposit(amount / 2);
 
+    // sending half tokens to the user
     token.mint(msg.sender, amount / 2); // TODO is the right function ?
 
+    // sending the nft to the user
     safeExit.mint(msg.sender);
     safeExit.setPresaleBuyAmount(msg.sender, msg.value);
 

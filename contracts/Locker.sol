@@ -12,18 +12,15 @@ contract Locker is ILocker {
   IGuilderFi token;
 
   constructor(
-    uint256 _unlockDate,
     address _presaleAddress,
     address _tokenAddress
   ) {
-    unlockDate = _unlockDate;
     presaleAddress = _presaleAddress;
 
     token = IGuilderFi(_tokenAddress);
   }
 
   function withdraw(address _walletAddress) external {
-    require(block.timestamp > unlockDate, "Tokens are not unlocked yet");
     require(msg.sender == _presaleAddress, "Only presale contract can call this locker");
 
     uint256 bal = token.balanceOf(this);
