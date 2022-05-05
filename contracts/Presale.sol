@@ -14,7 +14,7 @@ contract Presale {
 
   bool public isPresaleOpen = false;
 
-  safeExit private safeExit;
+  ISafeExitFund private safeExit;
   IGuilderFi private token;
 
   modifier onlyTokenOwner() {
