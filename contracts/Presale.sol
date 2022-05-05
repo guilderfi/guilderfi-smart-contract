@@ -4,6 +4,8 @@ pragma solidity ^0.8.10;
 
 import "./interfaces/IGuilderFi.sol";
 import "./interfaces/ISafeExitFund.sol";
+import "./interfaces/ILocker.sol";
+import "./Locker.sol";
 
 contract Presale {
   mapping(address => bool) private tier1Whitelist; // index 1
@@ -17,10 +19,17 @@ contract Presale {
   ISafeExitFund private safeExit;
   IGuilderFi private token;
 
+  mapping(address => address) private lockers;
+  uint256 lockerUnlockDate;
+
   modifier onlyTokenOwner() {
     require(msg.sender == address(_token.getOwner()), "Sender is not token owner");
     _;
   }
+
+  /**
+   * TODO Ensure that one uer can't be in multiple whitelists and add a remove function;
+   */
 
   constructor(address _safeExitAddress, address _tokenAddress) {
     token = IGuilderFi(_tokenAddress);
@@ -29,6 +38,10 @@ contract Presale {
 
   function setSafeExit(address _address) external onlyTokenOwner {
     safeExit = ISafeExitFund(_address);
+  }
+
+  function setLockerUnlockDate(uint256 _date) external onlyTokenOwner {
+    lockerUnlockDate = _date;
   }
 
   function addToWhitelist(address[] _addresses, uint256 _tierIndex) external onlyTokenOwner {
@@ -47,21 +60,44 @@ contract Presale {
   function buyTokens() public payable {
     require(walletHasBought[msg.sender] != true, "Wallet has already bought");
 
+    uint256 amount;
+
     if (!isPresaleOpen) {
       require(msg.value >= 0.5 ether && msg.value <= 25 ether, "Value not consistent with presale contraints");
-      if (msg.value >= 5 ether && msg.value <= 25 ether) require(tier1Whitelist[msg.sender] == true, "Wallet not whitelisted for this tier");
-      if (msg.value >= 2.5 ether && msg.value <= 5 ether) require(tier2Whitelist[msg.sender] == true, "Wallet not whitelisted for this tier");
-      if (msg.value >= 0.5 ether && msg.value <= 1 ether) require(tier3Whitelist[msg.sender] == true, "Wallet not whitelisted for this tier");
+      if (msg.value >= 5 ether && msg.value <= 25 ether) {
+        require(tier1Whitelist[msg.sender] == true, "Wallet not whitelisted for this tier");
+        amount = msg.value * 1760;
+      }
+      if (msg.value >= 2.5 ether && msg.value <= 5 ether) {
+        require(tier2Whitelist[msg.sender] == true, "Wallet not whitelisted for this tier");
+        amount = msg.value * 1664;
+      }
+      if (msg.value >= 0.5 ether && msg.value <= 1 ether) {
+        require(tier3Whitelist[msg.sender] == true, "Wallet not whitelisted for this tier");
+        amount = msg.value * 1600;
+      }
     } else {
       require(msg.value >= 0.5 ether && msg.value <= 10 ether, "Value not consistent with presale contraints");
+      amount = msg.value * 1400;
     }
 
-    // TODO transfer / lock 50% tokens
+    ILocker locker = new Locker();
+    locker.deposit(amount / 2);
+    lockers[msg.sender] = locker;
+
+    token.mint(msg.sender, amount / 2); // TODO is the right function ?
 
     safeExit.mint(msg.sender);
     safeExit.setPresaleBuyAmount(msg.sender, msg.value);
 
     walletHasBought[msg.sender] = true;
+  }
+
+  function unlockTokens() external {
+    require(block.timestamp > lockerUnlockDate, "Can't unlock tokens yet");
+
+    ILocker locker = lockers[msg.sender];
+    locker.withdraw(msg.sender);
   }
 
   function withdraw(uint256 _amount) external override onlyTokenOwner {
