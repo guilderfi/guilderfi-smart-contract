@@ -26,11 +26,7 @@ contract Presale {
     require(msg.sender == address(_token.getOwner()), "Sender is not token owner");
     _;
   }
-
-  /**
-   * TODO Ensure that one uer can't be in multiple whitelists and add a remove function;
-   */
-
+  
   constructor(address _safeExitAddress, address _tokenAddress) {
     token = IGuilderFi(_tokenAddress);
     safeExit = ISafeExitFund(_safeExitAddress);
@@ -47,9 +43,33 @@ contract Presale {
   function addToWhitelist(address[] _addresses, uint256 _tierIndex) external onlyTokenOwner {
     require(_tierIndex == 1 || _tierIndex == 2 || _tierIndex == 3, "Tier index out of bounds");
     for (uint256 i = 0; i < _addresses.length; i++) {
-      if (_tierIndex == 1) tier1Whitelist[_addresses[i]] == true;
-      if (_tierIndex == 2) tier2Whitelist[_addresses[i]] == true;
-      if (_tierIndex == 3) tier3Whitelist[_addresses[i]] == true;
+      if (_tierIndex == 1) {
+        tier1Whitelist[_addresses[i]] == true;
+
+        tier2Whitelist[_addresses[i]] == false;
+        tier3Whitelist[_addresses[i]] == false;
+      }
+      if (_tierIndex == 2) {
+        tier2Whitelist[_addresses[i]] == true;
+
+        tier1Whitelist[_addresses[i]] == false;
+        tier3Whitelist[_addresses[i]] == false;
+      }
+      if (_tierIndex == 3) {
+        tier3Whitelist[_addresses[i]] == true;
+
+        tier1Whitelist[_addresses[i]] == false;
+        tier2Whitelist[_addresses[i]] == false;
+      }
+    }
+  }
+
+  function removeFromWhitelist(address[], uint256 _tierIndex) external onlyTokenOwner {
+    require(_tierIndex == 1 || _tierIndex == 2 || _tierIndex == 3, "Tier index out of bounds");
+    for (uint256 i = 0; i < _addresses.length; i++) {
+      if (_tierIndex == 1) tier1Whitelist[_addresses[i]] == false;
+      if (_tierIndex == 2) tier2Whitelist[_addresses[i]] == false;
+      if (_tierIndex == 3) tier3Whitelist[_addresses[i]] == false;
     }
   }
 
