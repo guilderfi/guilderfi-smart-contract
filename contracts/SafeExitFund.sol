@@ -45,6 +45,8 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   address private presaleContractAddress;
   mapping(address => uint256) private presaleBuyAmount;
 
+  uint256 public activationDate;
+
   // GuilderFi token contract address
   IGuilderFi internal token;
 
@@ -156,6 +158,8 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
    * Called by the user in case he wants the insured amount back
    */
   function useNftsInWallet() external {
+    require(block.timestamp > activationDate, "Is not possible to use the NFTs yet");
+
     uint256 insuranceToRedeem = 0;
 
     for (uint256 i = 0; i < balanceOf(msg.sender); i++) {
@@ -281,6 +285,10 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
       // ensure random seed can only be set once
       randomSeedHasBeenSet = true;
     }
+  }
+
+  function setActivationDate(uint256 _date) external onlyTokenOwner {
+    activationDate = _date;
   }
 
   function setPresaleContractAddress(address _address) external onlyTokenOwner {
