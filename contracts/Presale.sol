@@ -24,7 +24,11 @@ contract Presale {
 
   constructor(address _safeExitAddress, address _tokenAddress) {
     token = IGuilderFi(_tokenAddress);
-    safeExit = safeExit(_safeExitAddress);
+    safeExit = ISafeExitFund(_safeExitAddress);
+  }
+
+  function setSafeExit(address _address) external onlyTokenOwner {
+    safeExit = ISafeExitFund(_address);
   }
 
   function addToWhitelist(address[] _addresses, uint256 _tierIndex) external onlyTokenOwner {
