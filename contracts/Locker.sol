@@ -21,11 +21,11 @@ contract Locker is ILocker {
   }
 
   function withdraw(address _walletAddress) external {
-    require(msg.sender == _presaleAddress, "Only presale contract can call this locker");
+    require(msg.sender == presaleAddress, "Only presale contract can call this locker");
 
-    uint256 bal = token.balanceOf(this);
+    uint256 bal = token.balanceOf(address(this));
 
-    token.approve(_presaleAddress, bal);
+    token.approve(presaleAddress, bal);
     token.transfer(_walletAddress, bal);
 
     // TODO ensure that `transfer` does not interfere with fees or other stuffs

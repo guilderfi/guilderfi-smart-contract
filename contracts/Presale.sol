@@ -6,6 +6,8 @@ import "./interfaces/IGuilderFi.sol";
 import "./interfaces/ISafeExitFund.sol";
 import "./interfaces/ILocker.sol";
 import "./Locker.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 
 contract Presale {
   mapping(address => bool) private tier1Whitelist; // index 1
@@ -20,11 +22,11 @@ contract Presale {
   ISafeExitFund private safeExit;
   IGuilderFi private token;
 
-  mapping(address => address) private lockers;
+  mapping(address => ILocker) private lockers; // user => locker
   uint256 lockerUnlockDate;
 
   modifier onlyTokenOwner() {
-    require(msg.sender == address(_token.getOwner()), "Sender is not token owner");
+    require(msg.sender == address(token.getOwner()), "Sender is not token owner");
     _;
   }
 
@@ -45,36 +47,36 @@ contract Presale {
     customBuyLimit[_walletAddress] = _limit;
   }
 
-  function addToWhitelist(address[] _addresses, uint256 _tierIndex) external onlyTokenOwner {
+  function addToWhitelist(address[] memory _addresses, uint256 _tierIndex) external onlyTokenOwner {
     require(_tierIndex == 1 || _tierIndex == 2 || _tierIndex == 3, "Tier index out of bounds");
     for (uint256 i = 0; i < _addresses.length; i++) {
       if (_tierIndex == 1) {
-        tier1Whitelist[_addresses[i]] == true;
+        tier1Whitelist[_addresses[i]] = true;
 
-        tier2Whitelist[_addresses[i]] == false;
-        tier3Whitelist[_addresses[i]] == false;
+        tier2Whitelist[_addresses[i]] = false;
+        tier3Whitelist[_addresses[i]] = false;
       }
       if (_tierIndex == 2) {
-        tier2Whitelist[_addresses[i]] == true;
+        tier2Whitelist[_addresses[i]] = true;
 
-        tier1Whitelist[_addresses[i]] == false;
-        tier3Whitelist[_addresses[i]] == false;
+        tier1Whitelist[_addresses[i]] = false;
+        tier3Whitelist[_addresses[i]] = false;
       }
       if (_tierIndex == 3) {
-        tier3Whitelist[_addresses[i]] == true;
+        tier3Whitelist[_addresses[i]] = true;
 
-        tier1Whitelist[_addresses[i]] == false;
-        tier2Whitelist[_addresses[i]] == false;
+        tier1Whitelist[_addresses[i]] = false;
+        tier2Whitelist[_addresses[i]] = false;
       }
     }
   }
 
-  function removeFromWhitelist(address[], uint256 _tierIndex) external onlyTokenOwner {
+  function removeFromWhitelist(address[] memory _addresses, uint256 _tierIndex) external onlyTokenOwner {
     require(_tierIndex == 1 || _tierIndex == 2 || _tierIndex == 3, "Tier index out of bounds");
     for (uint256 i = 0; i < _addresses.length; i++) {
-      if (_tierIndex == 1) tier1Whitelist[_addresses[i]] == false;
-      if (_tierIndex == 2) tier2Whitelist[_addresses[i]] == false;
-      if (_tierIndex == 3) tier3Whitelist[_addresses[i]] == false;
+      if (_tierIndex == 1) tier1Whitelist[_addresses[i]] = false;
+      if (_tierIndex == 2) tier2Whitelist[_addresses[i]] = false;
+      if (_tierIndex == 3) tier3Whitelist[_addresses[i]] = false;
     }
   }
 
@@ -114,10 +116,10 @@ contract Presale {
     ILocker locker = new Locker(address(this), address(token));
     lockers[msg.sender] = locker;
     // deposit half tokens into the locker
-    locker.deposit(amount / 2);
+    token.transfer(address(locker), amount / 2);
 
     // sending half tokens to the user
-    token.mint(msg.sender, amount / 2); // TODO is the right function ?
+    token.transfer(msg.sender, amount / 2); // TODO is the right function ?
 
     // sending the nft to the user
     safeExit.mint(msg.sender);
@@ -133,11 +135,11 @@ contract Presale {
     locker.withdraw(msg.sender);
   }
 
-  function withdraw(uint256 _amount) external override onlyTokenOwner {
+  function withdraw(uint256 _amount) external onlyTokenOwner {
     payable(msg.sender).transfer(_amount);
   }
 
-  function withdrawTokens(address _token, uint256 _amount) external override onlyTokenOwner {
+  function withdrawTokens(address _token, uint256 _amount) external onlyTokenOwner {
     IERC20(_token).transfer(msg.sender, _amount);
   }
 }

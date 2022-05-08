@@ -87,7 +87,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     address _walletAddress,
     uint256 _amount,
     bool _isPositiveTransaction
-  ) external override onlyToken {
+  ) external onlyToken {
     if (_isPositiveTransaction) fillNftsInWallet(_walletAddress, _amount);
     else drainNftsInWallet(_walletAddress);
   }
@@ -98,7 +98,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
    *
    * Called by the token contract when a "buy" event occurs
    */
-  function fillNftsInWallet(address _walletAddress, uint256 _amount) external onlyToken {
+  function fillNftsInWallet(address _walletAddress, uint256 _amount) internal onlyToken {
     for (uint256 i = 0; i < balanceOf(_walletAddress); i++) {
       if (_amount <= 0) return;
 
@@ -125,7 +125,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
    *
    * Called by the token contract when a user transfers or sells any token.
    */
-  function drainNftsInWallet(address _walletAddress) external onlyToken {
+  function drainNftsInWallet(address _walletAddress) internal onlyToken {
     for (uint256 i = 0; i < balanceOf(_walletAddress); i++) {
       uint256 nftId = tokenOfOwnerByIndex(_walletAddress, i);
       drainNft(nftId);
@@ -239,7 +239,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   /**
    * Overrides the limit of a batch of NFTs
    */
-  function overrideNftLimitBatch(uint256[] _nftIds, uint256[] _limits) external onlyTokenOwner {
+  function overrideNftLimitBatch(uint256[] memory _nftIds, uint256[] memory _limits) external onlyTokenOwner {
     require(_nftIds.length == _limits.length, "Ids and Limits lenghts not matching");
 
     for (uint256 i = 0; i < _nftIds.length; i++) overrideNftLimit(_nftIds[i], _limits[i]);
