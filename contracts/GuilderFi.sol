@@ -173,11 +173,9 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         _isFeeExempt[address(safeExitFund)] = true;
         
         // init presale
-        /*
         preSale = new PreSale();
         _allowedFragments[address(preSale)][address(_router)] = type(uint256).max;
         _isFeeExempt[address(preSale)] = true;
-        */
 
         // transfer ownership + total supply to treasury
         _gonBalances[_treasuryAddress] = TOTAL_GONS;

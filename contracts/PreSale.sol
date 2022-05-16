@@ -58,7 +58,6 @@ contract PreSale is IPreSale {
 
   // contracts
   IGuilderFi private _token;
-  ISafeExitFund private _safeExit;
 
   modifier onlyTokenOwner() {
     require(msg.sender == address(_token.getOwner()), "Sender is not _token owner");
@@ -67,7 +66,7 @@ contract PreSale is IPreSale {
 
   constructor() {
     _token = IGuilderFi(msg.sender);
-    _safeExit = ISafeExitFund(_token.getSafeExitFundAddress());
+
     tiers.push(tier1);
     tiers.push(tier2);
     tiers.push(tier3);
@@ -171,6 +170,7 @@ contract PreSale is IPreSale {
 
     // gift a safe exit NFT if its the first time buying
     if (isFirstPurchase) {
+      ISafeExitFund _safeExit = ISafeExitFund(_token.getSafeExitFundAddress());
       _safeExit.mint(msg.sender);
       _safeExit.setPresaleBuyAmount(msg.sender, msg.value);
     }
