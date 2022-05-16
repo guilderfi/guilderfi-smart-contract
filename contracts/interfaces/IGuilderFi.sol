@@ -82,6 +82,7 @@ interface IGuilderFi {
     function getLrfAddress() external view returns (address);
     function getAutoLiquidityAddress() external view returns (address);
     function getSafeExitFundAddress() external view returns (address);
+    function getPreSaleAddress() external view returns (address);
     function getBurnAddress() external view returns (address);
 
     // Setting flags

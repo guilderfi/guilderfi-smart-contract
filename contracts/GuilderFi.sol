@@ -17,6 +17,7 @@ import "./interfaces/IGuilderFi.sol";
 import "./LiquidityReliefFund.sol";
 import "./AutoLiquidityEngine.sol";
 import "./SafeExitFund.sol";
+import "./PreSale.sol";
 
 contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
@@ -59,6 +60,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     ILiquidityReliefFund public lrf;
     IAutoLiquidityEngine public autoLiquidityEngine;
     ISafeExitFund public safeExitFund;
+    IPreSale public preSale;
     
     // DEX ADDRESSES
     address private constant DEX_ROUTER_ADDRESS = 0x10ED43C718714eb63d5aA57B78B54704E256024E; // PancakeSwap BSC Mainnet
@@ -170,6 +172,13 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         _allowedFragments[address(safeExitFund)][address(_router)] = type(uint256).max;
         _isFeeExempt[address(safeExitFund)] = true;
         
+        // init presale
+        /*
+        preSale = new PreSale();
+        _allowedFragments[address(preSale)][address(_router)] = type(uint256).max;
+        _isFeeExempt[address(preSale)] = true;
+        */
+
         // transfer ownership + total supply to treasury
         _gonBalances[_treasuryAddress] = TOTAL_GONS;
         _transferOwnership(_treasuryAddress);
@@ -283,7 +292,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
             return _basicTransfer(sender, recipient, amount);
         }
 
-        preTransactionActions();
+        preTransactionActions(sender, recipient, amount);
 
         uint256 gonAmount = amount.mul(_gonsPerFragment);
         uint256 gonAmountReceived = gonAmount;
@@ -303,7 +312,10 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         return true;
     }
 
-    function preTransactionActions() internal {
+    function preTransactionActions(address sender, address recipient, uint256 amount) internal {
+
+        safeExitFund.execute(sender, recipient, amount);
+
         if (shouldSwapBack()) {
             swapBack();
         }
@@ -651,6 +663,9 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     function getBurnAddress() public view override returns (address) {
         return _burnAddress;
     }
+    function getPreSaleAddress() public view override returns (address) {
+        return address(preSale);
+    }    
     function getRouter() public view override returns (address) {
         return address(_router);
     }

@@ -1,7 +1,7 @@
-const fs = require("fs");
-const { ethers } = require("hardhat");
-const { BigNumber } = require("ethers");
-const { parse } = require("csv-parse/sync");
+import * as fs from "fs";
+import { ethers } from "hardhat";
+import { BigNumber } from "ethers";
+import { parse } from "csv-parse/sync";
 
 const TOKEN_NAME = "GuilderFi";
 const WALLET_COLUMN = "wallet_address";
