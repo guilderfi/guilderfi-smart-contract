@@ -63,7 +63,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   }
 
   modifier onlyPresale() {
-    require(msg.sender == presaleContractAddress, "Sender is not presale contract");
+    require(msg.sender == token.getPreSaleAddress(), "Sender is not presale contract");
     _;
   }
 
@@ -311,10 +311,6 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
   function setActivationDate(uint256 _date) external onlyTokenOwner {
     activationDate = _date;
-  }
-
-  function setPresaleContractAddress(address _address) external onlyTokenOwner {
-    presaleContractAddress = _address;
   }
 
   function withdraw(uint256 _amount) external override onlyTokenOwner {

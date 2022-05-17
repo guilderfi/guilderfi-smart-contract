@@ -268,61 +268,9 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(tokenReservesDifference).to.be.closeTo(addZeroes(80, DECIMALS), addZeroes(1, DECIMALS));
   });
 
-  /*
-  it("Rebase should increase each account balance by 0.016% after 12 minutes", async function () {
-    // move time forward 12 minutes
-    await ethers.provider.send("evm_increaseTime", [720]);
-    await ethers.provider.send("evm_mine");
-
-    expect(await token.pendingRebases()).to.equal(1);
-
-    // trigger rebase
-    await token.connect(treasury).rebase();
-
-    // check that rebase has been applied
-    expect(await token.balanceOf(account2.address)).to.equal(BigNumber.from("100016030912247000000"));
-    expect(await token.balanceOf(account1.address)).to.equal(BigNumber.from("900144278210223000000"));
-    expect(await token.lastEpoch()).to.equal(1);
-    expect(await token.pendingRebases()).to.equal(0);
+  it("Should allow transactions when all features are enabled", async function () {
+    // turn on all features
+    // buy
+    // sell
   });
-
-  it("Rebase should perform rebases in max batch sizes", async function () {
-    // move time forward by 100 rebases)
-    await ethers.provider.send("evm_increaseTime", [720 * 100]);
-    await ethers.provider.send("evm_mine");
-
-    expect(await token.pendingRebases()).to.equal(100);
-
-    // trigger rebase
-    await token.connect(treasury).rebase();
-
-    expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("100659379119725000000"), 1000000);
-    expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("905934412077523000000"), 1000000);
-    expect(await token.lastEpoch()).to.equal(41);
-    expect(await token.pendingRebases()).to.equal(60);
-
-    await token.connect(treasury).rebase();
-    expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("101306865632955000000"), 2500000);
-    expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("911761790696595000000"), 2500000);
-    expect(await token.lastEpoch()).to.equal(81);
-    expect(await token.pendingRebases()).to.equal(20);
-
-    await token.connect(treasury).rebase();
-    expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("101632169066129000000"), 5000000);
-    expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("914689521595163000000"), 5000000);
-    expect(await token.lastEpoch()).to.equal(101);
-    expect(await token.pendingRebases()).to.equal(0);
-
-    try {
-      await token.connect(treasury).rebase();
-    } catch (error) {
-      expect(error.message).to.contain("No pending rebases");
-    }
-
-    expect(await token.balanceOf(account2.address)).to.be.closeTo(BigNumber.from("101632169066129000000"), 5000000);
-    expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("914689521595163000000"), 5000000);
-    expect(await token.lastEpoch()).to.equal(101);
-    expect(await token.pendingRebases()).to.equal(0);
-  });
-  */
 });
