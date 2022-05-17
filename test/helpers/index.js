@@ -2,8 +2,16 @@ const { ethers } = require("hardhat");
 const { BigNumber } = require("ethers");
 const clc = require("cli-color");
 
+const DECIMALS = 18;
+
 const addZeroes = (num, zeroes) => {
   return BigNumber.from(num).mul(BigNumber.from(10).pow(zeroes));
+};
+
+const ether = (num) => {
+  const numString = num.toString();
+  const decimals = numString.indexOf(".") > 0 ? numString.split(".")[1].length : 0;
+  return BigNumber.from(numString.replace(".", "")).mul(BigNumber.from(10).pow(DECIMALS - decimals));
 };
 
 const print = (msg) => {
@@ -81,7 +89,7 @@ const calculateEthToReceive = async ({ token, pair, tokenAmount }) => {
   return numerator.div(denominator);
 };
 
-const calculateInitialLP = ({ tokenAmount, ethAmount }) => {
+const calculateLPtokens = ({ tokenAmount, ethAmount }) => {
   // https://www.reddit.com/r/UniSwap/comments/i49dmk/how_are_lp_token_amounts_calculated/
 
   const MINIMUM_LIQUIDITY = 1000;
@@ -135,6 +143,8 @@ const printStatus = async ({ token, treasury, lrf, safeExit, pair }) => {
 };
 
 module.exports = {
+  DECIMALS,
+  ether,
   addZeroes,
   print,
   transferTokens,
@@ -144,6 +154,6 @@ module.exports = {
   addLiquidity,
   getLiquidityReserves,
   calculateEthToReceive,
-  calculateInitialLP,
+  calculateLPtokens,
   printStatus,
 };

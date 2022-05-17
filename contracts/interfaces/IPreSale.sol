@@ -17,6 +17,9 @@ interface IPreSale {
   function whitelistSaleCloseDate() external view  returns (uint256);
   function lockerUnlockDate() external view  returns (uint256);
   function isRefundActivated() external returns (bool);
+  function tokensSold() external returns (uint256);
+  function lockDuration() external returns (uint256);
+  function isSaleClosed() external returns (bool);
 
   // external setter functions
   function openPublicSale(bool isOpen) external;
@@ -24,10 +27,10 @@ interface IPreSale {
   function setSoftCap(uint256 softCapAmount) external;
   function setPublicSaleCloseDate(uint256 date) external;
   function setWhitelistSaleCloseDate(uint256 date) external;
-  function setLockerUnlockDate(uint256 _date) external;
-  function setCustomLimit(address _address, uint256 _limit) external;
+  function setCustomLimit(address[] memory _addresses, uint256 _maxPurchaseAmount) external;
   function addToWhitelist(address[] memory _addresses, uint256 _tierId) external;
   function removeFromWhitelist(address[] memory _addresses) external;
+  function setLockDuration(uint256 _duration) external;
 
   // functions
   function buyTokens() external payable;

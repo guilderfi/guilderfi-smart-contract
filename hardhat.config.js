@@ -35,12 +35,16 @@ task("deploy", "Deploys the contract to the blockchain", async (taskArgs, hre) =
   console.log("Token deployed to contract address: ", token.address);
 });
 
-task("open", "Open up for trade", async (taskArgs, hre) => {
+task("presale", "Run presale stuff", async (taskArgs, hre) => {
   const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
-  const token = await Token.attach(process.env.CONTRACT_ADDRESS);
-  await token.openTrade();
+  const PreSale = await hre.ethers.getContractFactory("PreSale");
 
-  console.log("Token open up for trade: ", token.address);
+  const token = await Token.deploy();
+  const preSaleAddress = await token.getPreSaleAddress();
+  const preSale = PreSale.attach(preSaleAddress);
+
+  console.log("Pre sale address is: ", preSaleAddress);
+  console.log("Pre sale - public sale is open: ", await preSale.isPublicSaleOpen());
 });
 
 task("script", "Run a script, e.g. scripts/airdrop.js")

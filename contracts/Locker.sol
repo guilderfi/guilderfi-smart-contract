@@ -20,9 +20,7 @@ contract Locker is ILocker {
   function withdraw(address _walletAddress) external {
     require(msg.sender == presaleAddress, "Sender is not presale contract");
 
-    uint256 bal = token.balanceOf(address(this));
-    token.transfer(_walletAddress, bal);
-
-    // TODO ensure that `transfer` does not interfere with fees or other stuffs
+    uint256 balance = token.balanceOf(address(this));
+    token.transfer(_walletAddress, balance);
   }
 }

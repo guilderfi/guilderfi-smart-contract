@@ -26,10 +26,10 @@ contract PreSale is IPreSale {
   }
 
   // tiers
-  Tier private tier1 = Tier(1, "Noble", 12.5 ether, 25 ether, 1760, 500);
-  Tier private tier2 = Tier(2, "Clergy", 5 ether, 10 ether, 1664, 1000);
+  Tier private tier1 = Tier(1, "Noble", 12.5 ether, 25 ether, 1800, 500);
+  Tier private tier2 = Tier(2, "Clergy", 5 ether, 10 ether, 1700, 1000);
   Tier private tier3 = Tier(3, "Artisan", 2.5 ether, 5 ether, 1600, 1000);
-  Tier private publicSale = Tier(0, "Commoner", 0.5 ether, 1 ether, 1400, 2500);
+  Tier private publicSale = Tier(0, "Commoner", 0.5 ether, 1 ether, 1500, 2500);
   Tier private customTier = Tier(99, "Custom", 25 ether, MAX_UINT256, 2000, MAX_UINT256);
   
   // tiers array
@@ -51,10 +51,13 @@ contract PreSale is IPreSale {
   uint256 private _softCap = 10000 ether;
   uint256 private _publicSaleCloseDate;
   uint256 private _whitelistSaleCloseDate;
-  uint256 private _lockerUnlockDate;
+  uint256 private _lockDuration = 30 days;
 
   // flags
   bool private _isRefundActivated = false;
+  uint256 private _tokensSold = 0;
+  bool private _isSaleClosed = false;
+  uint256 private _saleCloseDate;
 
   // contracts
   IGuilderFi private _token;
@@ -124,11 +127,12 @@ contract PreSale is IPreSale {
       require(isPublicSaleActive, "Pre sale is not open");
     }
 
-    require(_purchaseAmount[msg.sender].add(msg.value) <= tier.maxAmount, "Total purchases exceed limit");
     require(msg.value >= tier.minAmount, "Purchase amount too low");
     require(msg.value <= tier.maxAmount, "Purchase amount too high");
+    require(_purchaseAmount[msg.sender].add(msg.value) <= tier.maxAmount, "Total purchases exceed limit");
 
     uint256 tokenAmount = msg.value.mul(tier.tokensPerEth);
+    _tokensSold = _tokensSold.add(tokenAmount);
 
     require(_token.balanceOf(address(this)) >= tokenAmount, "Presale requires more tokens");
 
@@ -140,7 +144,7 @@ contract PreSale is IPreSale {
 
     if (address(userLocker) == address(0)) {
       // create a new locker
-      userLocker = new Locker(address(this), msg.sender);
+      userLocker = new Locker(address(this), address(_token));
       _lockers[msg.sender] = userLocker;
     }
 
@@ -175,13 +179,16 @@ contract PreSale is IPreSale {
     // if soft cap reached, distribute to other contracts
     uint256 totalEth = address(this).balance;
 
+    _isSaleClosed = true;
+    _saleCloseDate = block.timestamp;
+
     if (totalEth < _softCap) {
       _isRefundActivated = true;
     }
     else {
       // distribute 60% to liquidity pool
       uint256 liquidityEthAmount = totalEth.mul(60 ether).div(100 ether);
-      uint256 liquidityTokenAmount = 10000; // TODO - calculate _token amount
+      uint256 liquidityTokenAmount = _tokensSold.mul(60 ether).div(100 ether);
 
       IDexRouter router = IDexRouter(_token.getRouter());
       router.addLiquidityETH{value: liquidityEthAmount} (
@@ -203,7 +210,10 @@ contract PreSale is IPreSale {
 
       // distribute remaining 16% to treasury
       uint256 treasuryEthAmount = totalEth.sub(liquidityEthAmount).sub(safeExitEthAmount).sub(lrfEthAmount);
-      payable(_token.getTreasuryAddress()).transfer(treasuryEthAmount);            
+      payable(_token.getTreasuryAddress()).transfer(treasuryEthAmount);
+
+      // refund remaining tokens to treasury
+      _token.transfer(_token.getTreasuryAddress(), _token.balanceOf(address(this)));
     }
   }
 
@@ -223,7 +233,8 @@ contract PreSale is IPreSale {
    * Unlock tokens in user locker
    */
   function unlockTokens() override external {
-    require(block.timestamp >= _lockerUnlockDate, "Tokens cannot be unlocked yet");
+    require(_isSaleClosed, "Sale is not closed yet");
+    require(block.timestamp >= _saleCloseDate + _lockDuration, "Tokens cannot be unlocked yet");
 
     ILocker userLocker = _lockers[msg.sender];
     userLocker.withdraw(msg.sender);
@@ -238,11 +249,14 @@ contract PreSale is IPreSale {
   function softCap() public view override returns (uint256) { return _softCap; }
   function publicSaleCloseDate() public view override returns (uint256) { return _publicSaleCloseDate; }
   function whitelistSaleCloseDate() public view override returns (uint256) { return _whitelistSaleCloseDate; }
-  function lockerUnlockDate() public view override returns (uint256) { return _lockerUnlockDate; }
+  function lockerUnlockDate() public view override returns (uint256) { return _isSaleClosed ? _saleCloseDate + _lockDuration : 0; }
   function isRefundActivated() public view override returns (bool) { return _isRefundActivated; }
   function purchaseAmount(address _address) public view override returns (uint256) { return _purchaseAmount[_address]; }
   function refundClaimed(address _address) public view override returns (bool) { return _refundClaimed[_address]; }
   function locker(address _address) public view override returns (address) { return address(_lockers[_address]); }
+  function tokensSold() public view override returns (uint256) { return _tokensSold; }
+  function lockDuration() public view override returns (uint256) { return _lockDuration; }
+  function isSaleClosed() public view override returns (bool) { return _isSaleClosed; }
   
   /**
    * External setter functions
@@ -267,12 +281,12 @@ contract PreSale is IPreSale {
     _whitelistSaleCloseDate = date;
   }
 
-  function setLockerUnlockDate(uint256 date) override external onlyTokenOwner {
-    _lockerUnlockDate = date;
+  function setLockDuration(uint256 duration) override external onlyTokenOwner {
+    _lockDuration = duration;
   }
 
   function addToWhitelist(address[] memory _addresses, uint256 _tierId) override external onlyTokenOwner {
-    require(_tierId == 1 || _tierId == 2 || _tierId == 3, "Invalid tier selected");
+    require(_tierId == 1 || _tierId == 2 || _tierId == 3 || _tierId == 99, "Invalid tier selected");
     for (uint256 i = 0; i < _addresses.length; i++) {
       whitelist[_addresses[i]] = _tierId;
     }
@@ -284,8 +298,10 @@ contract PreSale is IPreSale {
     }
   }
 
-  function setCustomLimit(address _address, uint256 _limit) override external onlyTokenOwner {
-    whitelist[_address] = customTier.tierId;
-    customBuyLimit[_address] = _limit;
+  function setCustomLimit(address[] memory _addresses, uint256 _maxPurchaseAmount) override external onlyTokenOwner {
+    for (uint256 i = 0; i < _addresses.length; i++) {
+      whitelist[_addresses[i]] = customTier.tierId;
+      customBuyLimit[_addresses[i]] = _maxPurchaseAmount;
+    }
   }
 }

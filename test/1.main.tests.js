@@ -8,7 +8,7 @@ const {
   addLiquidity,
   getLiquidityReserves,
   calculateEthToReceive,
-  calculateInitialLP,
+  calculateLPtokens,
   addZeroes,
   print,
 } = require("./helpers");
@@ -79,7 +79,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
       ethAmount,
     });
 
-    const expectedLPtokens = calculateInitialLP({ tokenAmount, ethAmount });
+    const expectedLPtokens = calculateLPtokens({ tokenAmount, ethAmount });
 
     // Treasury should have LP tokens after adding liquidity
     expect(await pair.balanceOf(treasury.address)).to.equal(expectedLPtokens);
