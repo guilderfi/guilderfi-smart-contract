@@ -17,11 +17,7 @@ let account6;
 let account7;
 let preSale;
 
-const tier1 = { tierId: 1, tokensPerEth: 1800, minAmount: ether(12.5), maxAmount: ether(25) };
-const tier2 = { tierId: 2, tokensPerEth: 1700, minAmount: ether(5), maxAmount: ether(10) };
-const tier3 = { tierId: 3, tokensPerEth: 1600, minAmount: ether(2.5), maxAmount: ether(5) };
-const publicTier = { tierId: 0, tokensPerEth: 1500, minAmount: ether(0.5), maxAmount: ether(1) };
-const customTier = { tierId: 99, tokensPerEth: 2000, minAmount: ether(25) };
+const { tier1, tier2, tier3, publicTier, customTier } = require("./helpers/data");
 
 let tokensPurchased = ether(0);
 let ethSpent = ether(0);
@@ -74,7 +70,7 @@ describe(`Testing pre-sale..`, function () {
     try {
       await preSale.connect(account1).buyTokens({ value: ether(1) });
     } catch (error) {
-      expect(error.message).to.contain("Pre sale is not open");
+      expect(error.message).to.contain("Public sale is not open");
     }
 
     // open public sale
@@ -98,13 +94,30 @@ describe(`Testing pre-sale..`, function () {
     expect(await preSale.isWhitelistSaleOpen()).to.equal(true);
 
     try {
-      await preSale.connect(account2).buyTokens({ value: ether(1) });
+      await preSale.connect(account1).buyTokens({ value: ether(1) });
     } catch (error) {
-      expect(error.message).to.contain("Wallet is not whitelisted");
+      expect(error.message).to.contain("Public sale is not open");
     }
 
-    // add account to whitelist
+    // add account2 to whitelist
     await preSale.connect(treasury).addToWhitelist([account2.address], tier1.tierId);
+
+    // close white list sale
+    await preSale.connect(treasury).openWhitelistSale(false);
+
+    try {
+      await preSale.connect(account2).buyTokens({ value: ether(1) });
+    } catch (error) {
+      expect(error.message).to.contain("Whitelist sale is not open");
+    }
+
+    // open whitelist sale and try a non whitelisted wallet
+    await preSale.connect(treasury).openWhitelistSale(true);
+    try {
+      await preSale.connect(account1).buyTokens({ value: ether(1) });
+    } catch (error) {
+      expect(error.message).to.contain("Public sale is not open");
+    }
 
     // attempt to spend less than min purchase amount
     try {

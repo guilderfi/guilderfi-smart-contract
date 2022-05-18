@@ -32,6 +32,7 @@ describe(`Testing liquidity relief fund..`, function () {
     */
   });
 
+  /*
   it("Should only become active when activation target has been met", async function () {
     // todo
     // trigger ratio -> 105%
@@ -57,4 +58,5 @@ describe(`Testing liquidity relief fund..`, function () {
     // todo
     // check balance has been adjusted
   });
+  */
 });

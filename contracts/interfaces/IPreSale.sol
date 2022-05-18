@@ -36,5 +36,6 @@ interface IPreSale {
   function buyTokens() external payable;
   function finalizeSale() external;
   function claimRefund() external returns (bool);
-  function unlockTokens() external;  
+  function unlockTokens() external;
+  function cancelSale() external;
 }

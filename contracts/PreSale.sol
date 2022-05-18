@@ -10,6 +10,7 @@ import "./interfaces/ISafeExitFund.sol";
 import "./interfaces/ILocker.sol";
 import "./interfaces/IDexRouter.sol";
 import "./interfaces/IPreSale.sol";
+import "./interfaces/ISafeExitFund.sol";
 import "./Locker.sol";
 
 contract PreSale is IPreSale {
@@ -22,15 +23,14 @@ contract PreSale is IPreSale {
     uint256 minAmount;
     uint256 maxAmount;
     uint256 tokensPerEth;
-    uint256 cap;
   }
 
   // tiers
-  Tier private tier1 = Tier(1, "Noble", 12.5 ether, 25 ether, 1800, 500);
-  Tier private tier2 = Tier(2, "Clergy", 5 ether, 10 ether, 1700, 1000);
-  Tier private tier3 = Tier(3, "Artisan", 2.5 ether, 5 ether, 1600, 1000);
-  Tier private publicSale = Tier(0, "Commoner", 0.5 ether, 1 ether, 1500, 2500);
-  Tier private customTier = Tier(99, "Custom", 25 ether, MAX_UINT256, 2000, MAX_UINT256);
+  Tier private tier1 = Tier(1, "Noble", 12.5 ether, 25 ether, 1800);
+  Tier private tier2 = Tier(2, "Clergy", 5 ether, 10 ether, 1700);
+  Tier private tier3 = Tier(3, "Artisan", 2.5 ether, 5 ether, 1600);
+  Tier private publicSale = Tier(0, "Commoner", 0.5 ether, 1 ether, 1500);
+  Tier private customTier = Tier(99, "Custom", 25 ether, MAX_UINT256, 2000);
   
   // tiers array
   Tier[] private tiers;
@@ -113,18 +113,19 @@ contract PreSale is IPreSale {
    * Buy tokens - number of tokens determined by tier
    */
   function buyTokens() public payable {
-    
-    bool isPublicSaleActive = _isPublicSaleOpen; // && (_publicSaleCloseDate == 0 || block.timestamp < _publicSaleCloseDate);
+    require(!_isSaleClosed, "Sale is closed");
+
+    bool isPublicSaleActive = _isPublicSaleOpen && (_publicSaleCloseDate == 0 || block.timestamp < _publicSaleCloseDate);
     bool isWhitelistSaleActive = _isWhitelistSaleOpen && (_whitelistSaleCloseDate == 0 || block.timestamp < _whitelistSaleCloseDate);
 
-    Tier memory tier = isWhitelistSaleActive ? getTier(msg.sender) : publicSale;
+    Tier memory tier = getTier(msg.sender);
 
-    if (isWhitelistSaleActive && !isPublicSaleActive) {
-      require (tier.tierId > 0, "Wallet is not whitelisted");
+    if (tier.tierId == 0) {
+      require(isPublicSaleActive, "Public sale is not open");
     }
-    
-    if (!isWhitelistSaleActive && tier.tierId == 0) {
-      require(isPublicSaleActive, "Pre sale is not open");
+
+    if (tier.tierId > 0) {
+      require(isWhitelistSaleActive, "Whitelist sale is not open");
     }
 
     require(msg.value >= tier.minAmount, "Purchase amount too low");
@@ -162,7 +163,7 @@ contract PreSale is IPreSale {
     if (isFirstPurchase) {
       ISafeExitFund _safeExit = ISafeExitFund(_token.getSafeExitFundAddress());
       _safeExit.mint(msg.sender);
-      _safeExit.setPresaleBuyAmount(msg.sender, msg.value);
+      _safeExit.capturePresalePurchaseAmount(msg.sender, msg.value);
     }
   }
 
@@ -200,9 +201,14 @@ contract PreSale is IPreSale {
         block.timestamp
       );
 
+      ISafeExitFund safeExitFund = ISafeExitFund(_token.getSafeExitFundAddress());
+
       // distribute 12% to safe exit fund
       uint256 safeExitEthAmount = totalEth.mul(12 ether).div(100 ether);
-      payable(_token.getSafeExitFundAddress()).transfer(safeExitEthAmount);
+      payable(address(safeExitFund)).transfer(safeExitEthAmount);
+
+      // set safe exit activation date for 30 days
+      safeExitFund.setActivationDate(block.timestamp + 30 days);
 
       // distribute 12% to liquidity relief fund (LRF)
       uint256 lrfEthAmount = totalEth.mul(12 ether).div(100 ether);
@@ -221,6 +227,7 @@ contract PreSale is IPreSale {
    * Claim refund
    */
   function claimRefund() override external returns (bool) {
+    require(_isSaleClosed, "Sale is not closed");
     require(_isRefundActivated, "Refunds are not available");
     require(!_refundClaimed[msg.sender], "Refund already claimed");
     
@@ -238,6 +245,15 @@ contract PreSale is IPreSale {
 
     ILocker userLocker = _lockers[msg.sender];
     userLocker.withdraw(msg.sender);
+  }
+
+  /**
+   * Cancel sale
+   */
+  function cancelSale() override external onlyTokenOwner {
+    _isSaleClosed = true;
+    _saleCloseDate = block.timestamp;
+    _isRefundActivated = true;
   }
 
   /**

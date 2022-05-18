@@ -10,44 +10,58 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 
 import "./interfaces/IGuilderFi.sol";
 import "./interfaces/ISafeExitFund.sol";
+import "./interfaces/IDexPair.sol";
 
 contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   using SafeMath for uint256;
   using Counters for Counters.Counter;
   Counters.Counter private _tokenId;
 
+  struct InsuranceStatus {
+    uint256 walletPurchaseAmount;
+    uint256 payoutAmount;
+    uint256 maxInsuranceAmount;
+    uint256 premiumAmount;
+    uint256 finalPayoutAmount;
+  }
+
   struct Package {
-    uint256 insuranceAmount;
-    uint256 randomRangeFrom;
-    uint256 randomRangeTo;
+    uint256 packageId;
+    uint256 maxInsuranceAmount;
     string metadataUri;
   }
 
-  Package[] private packages;
-
-  struct NftData {
-    uint256 insuredAmount;
-    uint256 overrideLimit;
-    bool used; // one time use
+  struct PackageChancePercentage {
+    uint256 packageId;
+    uint256 chancePercentage;
   }
 
-  mapping(uint256 => NftData) private nftData;
+  mapping(uint256 => Package) private packages;
+  PackageChancePercentage[] private packageChances;
 
-  uint256 private bonus = 625; // 6.25%
+  // bonus
+  uint256 private bonusNumerator = 625; // 6.25%
+  uint256 private constant BONUS_DENOMINATOR = 10000; 
 
-  uint256 public maxSupply = 5000;
+  // max nft supply
+  uint256 private _maxSupply = 5000;
 
-  string public unrevealedUri = "";
-  string public usedUri = "";
+  // metadata uri's
+  string private _unrevealedMetadataUri = "";
+  string private _usedMetadataUri = "";
 
+  // lottery
+  bool private randomSeedHasBeenSet = false;
   uint256 private randomSeed = 123456789;
   uint256 private timestampSalt = 123456789;
-  bool private randomSeedHasBeenSet = false;
 
-  address private presaleContractAddress;
-  mapping(address => uint256) private presaleBuyAmount;
+  // maps
+  mapping(address => uint256) private purchaseAmount;
+  mapping(uint256 => bool) private isUsed;
+  mapping(uint256 => uint256) private overrideLimit;
 
-  uint256 public activationDate;
+  // date when safeexit can be claimed
+  uint256 private _activationDate;
 
   // GuilderFi token contract address
   IGuilderFi internal token;
@@ -67,6 +81,11 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     _;
   }
 
+  modifier onlyTokenOwnerOrPresale() {
+    require(msg.sender == address(token.getOwner()) || msg.sender == token.getPreSaleAddress(), "Sender is not token or presale");
+    _;
+  }
+
   modifier nftsRevealed() {
     require(randomSeedHasBeenSet == true, "NFTs are not revealed yet");
     _;
@@ -75,231 +94,213 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   constructor() ERC721("Safe Exit Fund", "SEF") {
     token = IGuilderFi(msg.sender);
 
-    packages.push(Package(25 ether, 0, 24, "")); // PACK A, index 0
-    packages.push(Package(10 ether, 25, 49, "")); // PACK B, index 1
-    packages.push(Package(5 ether, 50, 74, "")); // PACK C, index 2
-    packages.push(Package(1 ether, 75, 99, "")); // PACK D, index 3
+    // Set max insurance amount of each NFT package
+    packages[1] = Package(1, 25 ether, "");
+    packages[2] = Package(2, 10 ether, "");
+    packages[3] = Package(3, 5 ether, "");
+    packages[4] = Package(4, 2 ether, "");
+
+    // Set % chances of receiving each NFT package
+    packageChances.push(PackageChancePercentage(1, 25));
+    packageChances.push(PackageChancePercentage(2, 25));
+    packageChances.push(PackageChancePercentage(3, 25));
+    packageChances.push(PackageChancePercentage(4, 25));    
   }
 
   /**
    * External function executed with every main contract transaction,
-   * fills or drains NFTs 
    */
   function execute(
     address sender,
     address recipient,
     uint256 tokenAmount
-  ) external onlyToken {
+  ) external override onlyToken {
     // if sender == pair, then this is a buy transaction
     if (sender == token.getPair()) {
-      uint256 ethAmount = tokenAmount; // TODO calculate eth amount based tokenAmount * current dex price
-      fillNftsInWallet(recipient, ethAmount);
+      capturePurchaseAmount(recipient, tokenAmount);
     }
     else {
-      drainNftsInWallet(sender);
+      // reset insured amount to zero when user sells/transfers tokens
+      resetInsuredAmount(sender);
     }
   }
 
   /**
-   * Gets a wallet address and an amount of coins to insure.
-   * Tries to fill all the NFTs in the user's wallet insuring the amount.
-   * Called by the token contract when a "buy" event occurs
+   * When a user purchases tokens from the exchange, calculate the current
+   * price of the token (in eth/coins) and record it
    */
-  function fillNftsInWallet(address _walletAddress, uint256 _amount) internal onlyToken {
-    if (_amount <= 0) return;
+  function capturePurchaseAmount(address _walletAddress, uint256 _tokenAmount) internal onlyToken {
+    if (_tokenAmount <= 0) return;
 
-    // loop through each NFT
-    for (uint256 i = 0; i < balanceOf(_walletAddress); i++) {
-      uint256 nftId = tokenOfOwnerByIndex(_walletAddress, i);
+    (uint256 ethReserves, uint256 tokenReserves) = getLiquidityPoolReserves();
+    
+    // calculate eth spent based on current liquidity pool reserves
+    uint256 ethSpent = _tokenAmount.mul(ethReserves).div(tokenReserves);
 
-      (uint256 tokenInsuredAmount, uint256 tokenInsuranceTotal) = getNftInsurance(nftId);
-
-      if (tokenInsuredAmount < tokenInsuranceTotal) {
-        uint256 spaceLeft = tokenInsuranceTotal.sub(tokenInsuredAmount);
-
-        if (_amount <= spaceLeft) {
-          nftData[nftId].insuredAmount += _amount;
-          return;
-        }
-        else {
-          nftData[nftId].insuredAmount += spaceLeft;
-          _amount -= spaceLeft;
-        }
-      }
-    }
+    purchaseAmount[_walletAddress] = purchaseAmount[_walletAddress].add(ethSpent);
   }
 
-  /**
-   * Drains all the insured amount for a user.
-   * Called by the token contract when a user transfers or sells any token.
-   */
-  function drainNftsInWallet(address _walletAddress) internal onlyToken {
-    for (uint256 i = 0; i < balanceOf(_walletAddress); i++) {
-      uint256 nftId = tokenOfOwnerByIndex(_walletAddress, i);
-      drainNft(nftId);
-    }
+  function capturePresalePurchaseAmount(address _walletAddress, uint256 _amount) external override onlyPresale {
+    purchaseAmount[_walletAddress] = purchaseAmount[_walletAddress].add(_amount);
   }
 
-  /**
-   * Drain the insured amount of an NFT
-   * Called on sell / transfer
-   */
-  function drainNft(uint256 _nftId) internal {
-    nftData[_nftId].insuredAmount = 0;
-    nftData[_nftId].overrideLimit = 0;
-  }
-
-  function _beforeTokenTransfer(
-    address from,
-    address to,
-    uint256 tokenId
-  ) internal virtual override {
-    super._beforeTokenTransfer(from, to, tokenId);
-
-    drainNft(tokenId);
+  function resetInsuredAmount(address _walletAddress) internal {
+    purchaseAmount[_walletAddress] = 0;
   }
 
   /**
    * Use all the NFTs in a user's wallet giving the insured amount to the user.
    * Called by the user in case they want the insured amount back
    */
-  function claimSafeExit() external {
-    require(block.timestamp > activationDate, "SafeExit not available yet");
+  function claimSafeExit() external override {
+    require(block.timestamp > _activationDate, "SafeExit not available yet");
 
-    uint256 insuranceToRedeem = 0;
+    (, , , , uint256 finalPayoutAmount) = getInsuranceStatus(msg.sender);
+
+    resetInsuredAmount(msg.sender);
 
     for (uint256 i = 0; i < balanceOf(msg.sender); i++) {
       uint256 nftId = tokenOfOwnerByIndex(msg.sender, i);
-      insuranceToRedeem += nftData[nftId].insuredAmount;
-      nftData[nftId].insuredAmount = 0;
-      nftData[nftId].used = true;
+      isUsed[nftId] = true;
     }
 
-    insuranceToRedeem = insuranceToRedeem + (insuranceToRedeem * bonus) / 100;
-    payable(msg.sender).transfer(insuranceToRedeem);
+    // transfer
+    require(address(this).balance >= finalPayoutAmount, "Insufficient SafeExit funds");
+    payable(msg.sender).transfer(finalPayoutAmount);
 
     // TODO destroy all tokens in user's wallet.
+    // re=entry => "isClaiming"?
   }
 
-  function tokenURI(uint256 _nftId) public view virtual override returns (string memory) {
-    require(_exists(_nftId), "Token does not exist");
-
-    if (randomSeedHasBeenSet == false) {
-      return unrevealedUri;
-    }
-
-    if (nftData[_nftId].used == true) {
-      return usedUri;
-    }
-
-    return getPackage(_nftId).metadataUri;
-  }
-
-  function setMetadataUri(uint256 _packIndex, string memory _uri) external onlyTokenOwner {
-    require(_packIndex <= packages.length, "NFT package index not found");
-
-    packages[_packIndex].metadataUri = _uri;
-  }
-
-  function mint(address _walletAddress) external onlyPresale {
+  function mint(address _walletAddress) external override onlyPresale {
     uint256 tokenId = _tokenId.current();
-    require(tokenId < maxSupply, "Can't mint more NFTs");
+    require(tokenId < _maxSupply, "Cannot mint more NFTs");
     _mint(_walletAddress, tokenId);
     _tokenId.increment();
   }
 
   /**
-   * Saves the insurable amount of coin for the presale buy.
-   * used to initialize the insured amount after the presale
+   * Public getter functions
    */
-  function setPresaleBuyAmount(address _walletAddress, uint256 _amount) external onlyPresale {
-    presaleBuyAmount[_walletAddress] = _amount;
-  }
+  function maxSupply() public override view returns (uint256) { return _maxSupply; }
+  function unrevealedMetadataUri() public override view returns (string memory) { return _unrevealedMetadataUri; }
+  function usedMetadataUri() public override view returns (string memory) { return _usedMetadataUri; }
+  function activationDate() public override view returns (uint256) { return _activationDate; }
 
-  /**
-   * init the insured amount after the presale
-   */
-  function initInsuredAmountAfterPresale(address _walletAddress) external {
-    fillNftsInWallet(_walletAddress, presaleBuyAmount[_walletAddress]);
-    presaleBuyAmount[_walletAddress] = 0;
+  function tokenURI(uint256 _nftId) public view override(ISafeExitFund, ERC721) returns (string memory) {
+    require(_exists(_nftId), "Token does not exist");
+
+    if (!randomSeedHasBeenSet) {
+      return _unrevealedMetadataUri;
+    }
+
+    if (isUsed[_nftId]) {
+      return _usedMetadataUri;
+    }
+
+    (, , string memory metadataUri) = getPackage(_nftId);
+    return metadataUri;
   }
 
   /**
    * Gets the package given a token ID.
-   * Works with a random procedure after the nfts are revealed
+   * The value of the package is determined via a random seed 
    */
-  function getPackage(uint256 _nftId) public view nftsRevealed returns (Package memory) {
+  function getPackage(uint256 _nftId) public override view nftsRevealed returns (
+    uint256 packageId,
+    uint256 maxInsuranceAmount,
+    string memory metadataUri
+  ) {
     // using timestamp salt & random seed & nftId we get a pseudo random number between 0 and 99
     uint256 randomNum = uint256(keccak256(abi.encodePacked(timestampSalt, randomSeed, _nftId))) % 100;
 
-    for (uint256 i = 0; i < packages.length; i++) {
-      if (randomNum >= packages[i].randomRangeFrom && randomNum <= packages[i].randomRangeTo) {
-        return packages[i];
+    uint256 rangeFrom = 0;
+    uint256 rangeTo = 0;
+
+    for (uint256 i = 0; i < packageChances.length; i++) {
+      rangeTo = rangeFrom + packageChances[i].chancePercentage;
+
+      if (randomNum >= rangeFrom && randomNum < rangeTo) {
+        // found matching package, return results
+        Package memory package = packages[packageChances[i].packageId];
+        
+        packageId = package.packageId;
+        maxInsuranceAmount = package.maxInsuranceAmount;
+        metadataUri = package.metadataUri;
+
+        return (packageId, maxInsuranceAmount, metadataUri);
       }
+
+      rangeFrom += packageChances[i].chancePercentage;
     }
 
-    return Package(0, 0, 0, "");
+    // if no package found, return empty package data
+    packageId = 0;
+    maxInsuranceAmount = 0;
+    metadataUri = "";
+  }
+
+  function getInsuranceStatus(address _walletAddress) public override view nftsRevealed returns (
+    uint256 totalPurchaseAmount,
+    uint256 maxInsuranceAmount,
+    uint256 payoutAmount,
+    uint256 premiumAmount,
+    uint256 finalPayoutAmount    
+    ) {
+    
+    totalPurchaseAmount = purchaseAmount[_walletAddress];
+    maxInsuranceAmount = getTotalInsurance(_walletAddress);
+
+    payoutAmount = (totalPurchaseAmount > maxInsuranceAmount) ? maxInsuranceAmount : totalPurchaseAmount;
+
+    // add premium
+    premiumAmount = payoutAmount.mul(bonusNumerator).div(BONUS_DENOMINATOR);
+    finalPayoutAmount = payoutAmount.add(premiumAmount);
   }
 
   /**
-   * Overrides the limit of an NFT
+   * Internal getter functions
    */
-  function overrideNftLimit(uint256 _nftId, uint256 _limit) public onlyTokenOwner {
-    nftData[_nftId].overrideLimit = _limit;
-  }
-
-  /**
-   * Overrides the limit of a batch of NFTs
-   */
-  function overrideNftLimitBatch(uint256[] memory _nftIds, uint256[] memory _limits) external onlyTokenOwner {
-    require(_nftIds.length == _limits.length, "Ids and Limits do not match");
-
-    for (uint256 i = 0; i < _nftIds.length; i++) overrideNftLimit(_nftIds[i], _limits[i]);
-  }
-
-  /**
-   * Gets the insurance amount of an NFT, and the total insurable
-   */
-  function getNftInsurance(uint256 _nftId) public view returns (uint256, uint256) {
-    require(_exists(_nftId), "Token does not exist");
-
-    if (nftData[_nftId].used == true) {
-      return (0, 0);
-    }
-
-    if (nftData[_nftId].overrideLimit > 0) {
-      return (
-        nftData[_nftId].insuredAmount,
-        nftData[_nftId].overrideLimit
-      );
-    }
-
-    return (
-      nftData[_nftId].insuredAmount,
-      getPackage(_nftId).insuranceAmount
-    );
-  }
-
-  /**
-   * Gets the total insured amount of a user, and the total insurable
-   */
-  function getTotalUserInsurance(address _walletAddress) external view returns (uint256, uint256) {
-    uint256 insuredAmount = 0;
-    uint256 totalInsurable = 0;
+  function getTotalInsurance(address _walletAddress) internal view returns (uint256) {
+    uint256 totalInsurance = 0;
 
     for (uint256 i = 0; i < balanceOf(_walletAddress); i++) {
       uint256 nftId = tokenOfOwnerByIndex(_walletAddress, i);
-      (uint256 tokenInsuredAmount, uint256 tokenInsuranceTotal) = getNftInsurance(nftId);
-      insuredAmount += tokenInsuredAmount;
-      totalInsurable += tokenInsuranceTotal;
+
+      // first check if NFT has been used
+      if (!isUsed[nftId]) {
+
+        // if not, check for override
+        if (overrideLimit[nftId] > 0) {
+          totalInsurance = totalInsurance.add(overrideLimit[nftId]);
+        }
+        else {
+          // if not override, use package data
+          (, uint256 maxInsuranceAmount, ) = getPackage(nftId);
+          totalInsurance = totalInsurance.add(maxInsuranceAmount);
+        }
+      }
     }
 
-    return (insuredAmount, totalInsurable);
+    return totalInsurance;
   }
 
-  // Should be set after pre-sales are complete
-  // Trigerred by an external function from main contract
-  function setRandomSeed(uint256 _randomSeed) external onlyToken {
+  function getLiquidityPoolReserves() internal view returns (uint256, uint256) {
+    IDexPair pair = IDexPair(token.getPair());
+    address token0Address = pair.token0();
+    (uint256 token0Reserves, uint256 token1Reserves, ) = pair.getReserves();
+    
+    // returns eth reserves, token reserves
+    return token0Address == address(token) ?
+        (token1Reserves, token0Reserves) :
+        (token0Reserves, token1Reserves);
+  }
+
+  /**
+   * Launch Safe Exit - reveal all NFT packages using a random seed
+   */
+  function setRandomSeed(uint256 _randomSeed) external override onlyTokenOwner {
+    // can only be called once
     if (!randomSeedHasBeenSet) {
       randomSeed = _randomSeed;
       timestampSalt = block.timestamp;
@@ -309,16 +310,36 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     }
   }
 
-  function setActivationDate(uint256 _date) external onlyTokenOwner {
-    activationDate = _date;
+  /**
+   * Other external override setter functions
+   */
+  function overrideNftLimit(uint256 _nftId, uint256 _limit) public override onlyTokenOwner {
+    overrideLimit[_nftId] = _limit;
   }
 
-  function withdraw(uint256 _amount) external override onlyTokenOwner {
-    payable(msg.sender).transfer(_amount);
+  function setMetadataUri(uint256 _packageId, string memory _uri) external override onlyTokenOwner {
+    require(_packageId <= 4, "NFT package index not found"); // TODO - fix
+    packages[_packageId].metadataUri = _uri;
   }
 
-  function withdrawTokens(address _token, uint256 _amount) external override onlyTokenOwner {
-    IERC20(_token).transfer(msg.sender, _amount);
+  function setUnrevealedMetadataUri(string memory _uri) external override onlyTokenOwner {
+    _unrevealedMetadataUri = _uri;
+  }
+  
+  function setUsedMetadataUri(string memory _uri) external override onlyTokenOwner {
+    _usedMetadataUri = _uri;
+  }
+
+  function setActivationDate(uint256 _date) external override onlyTokenOwnerOrPresale {
+    _activationDate = _date;
+  }
+
+  function withdraw(uint256 amount) external override onlyTokenOwner{
+      payable(msg.sender).transfer(amount);
+  }
+  
+  function withdrawTokens(address _tokenAddress, uint256 amount) external override onlyTokenOwner {
+      IERC20(_tokenAddress).transfer(msg.sender, amount);
   }
 
   receive() external payable {}

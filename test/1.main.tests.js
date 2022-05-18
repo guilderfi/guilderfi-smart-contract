@@ -41,8 +41,6 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     global.token = token;
     await token.deployed();
 
-    print(`Token address: ${token.address}`);
-
     // Set dex variables
     router = await ethers.getContractAt("IDexRouter", await token.getRouter());
     pair = await ethers.getContractAt("IDexPair", await token.getPair());
