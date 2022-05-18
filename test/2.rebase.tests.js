@@ -1,10 +1,8 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { BigNumber } = require("ethers");
-const { print, transferTokens, addZeroes } = require("./helpers");
+const { print, transferTokens, ether } = require("./helpers");
 
 const TOKEN_NAME = "GuilderFi";
-const DECIMALS = 18;
 
 let token;
 let treasury;
@@ -26,8 +24,8 @@ describe(`Testing rebasing engine..`, function () {
     await token.connect(treasury).openTrade();
     await token.connect(treasury).launchToken();
 
-    // transfer 1000 tokens to account1
-    await transferTokens({ token, from: treasury, to: account1, amount: addZeroes(100, DECIMALS) });
+    // transfer 100 tokens to account1
+    await transferTokens({ token, from: treasury, to: account1, amount: ether(100) });
   });
 
   it("Rebase should increase each account balance by 0.016% after 12 minutes", async function () {
@@ -41,7 +39,7 @@ describe(`Testing rebasing engine..`, function () {
     await token.connect(treasury).rebase();
 
     // check that rebase has been applied
-    expect(await token.balanceOf(account1.address)).to.equal(BigNumber.from("100016030912247000000"));
+    expect(await token.balanceOf(account1.address)).to.equal(ether(100.016030912247));
     expect(await token.lastEpoch()).to.equal(1);
     expect(await token.pendingRebases()).to.equal(0);
   });
@@ -56,17 +54,17 @@ describe(`Testing rebasing engine..`, function () {
     // trigger rebase
     await token.connect(treasury).rebase();
 
-    expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("100659379119725000000"), 1000000);
+    expect(await token.balanceOf(account1.address)).to.be.closeTo(ether(100.659379119725), ether(0.001));
     expect(await token.lastEpoch()).to.equal(41);
     expect(await token.pendingRebases()).to.equal(60);
 
     await token.connect(treasury).rebase();
-    expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("101306865632955000000"), 2500000);
+    expect(await token.balanceOf(account1.address)).to.be.closeTo(ether(101.306865632955), ether(0.001));
     expect(await token.lastEpoch()).to.equal(81);
     expect(await token.pendingRebases()).to.equal(20);
 
     await token.connect(treasury).rebase();
-    expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("101632169066129000000"), 5000000);
+    expect(await token.balanceOf(account1.address)).to.be.closeTo(ether(101.632169066129), ether(0.001));
     expect(await token.lastEpoch()).to.equal(101);
     expect(await token.pendingRebases()).to.equal(0);
 
@@ -76,7 +74,7 @@ describe(`Testing rebasing engine..`, function () {
       expect(error.message).to.contain("No pending rebases");
     }
 
-    expect(await token.balanceOf(account1.address)).to.be.closeTo(BigNumber.from("101632169066129000000"), 5000000);
+    expect(await token.balanceOf(account1.address)).to.be.closeTo(ether(101.632169066129), ether(0.001));
     expect(await token.lastEpoch()).to.equal(101);
     expect(await token.pendingRebases()).to.equal(0);
   });

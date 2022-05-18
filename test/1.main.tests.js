@@ -9,12 +9,11 @@ const {
   getLiquidityReserves,
   calculateEthToReceive,
   calculateLPtokens,
-  addZeroes,
+  ether,
   print,
 } = require("./helpers");
 
 const TOKEN_NAME = "GuilderFi";
-const DECIMALS = 18;
 const DEAD = ethers.utils.getAddress("0x000000000000000000000000000000000000dEaD");
 
 let token;
@@ -56,18 +55,18 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     await token.connect(treasury).setLrfFrequency(86400);
     await token.connect(treasury).setAutoLiquidityFrequency(86400);
 
-    expect(await token.totalSupply()).to.equal(addZeroes("100000000", DECIMALS));
-    expect(await token.balanceOf(treasury.address)).to.equal(addZeroes("100000000", DECIMALS));
+    expect(await token.totalSupply()).to.equal(ether(100000000));
+    expect(await token.balanceOf(treasury.address)).to.equal(ether(100000000));
   });
 
   it("Treasury should be able to add initial liquidity to liquidity pool", async function () {
     // Approve DEX to transfer
     await token.connect(treasury).allowPreSaleTransfer(router.address, true);
-    await token.connect(treasury).approve(router.address, addZeroes("999999999999", DECIMALS));
+    await token.connect(treasury).approve(router.address, ether(999999999999));
 
     // Add 10 million tokens + 10 BNB into liquidity
-    const tokenAmount = addZeroes("10000000", DECIMALS);
-    const ethAmount = addZeroes(10, 18);
+    const tokenAmount = ether(10000000);
+    const ethAmount = ether(10);
 
     await addLiquidity({
       router,
@@ -84,45 +83,45 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
     // Check eth/token reserves in DEX pair
     const { ethReserves, tokenReserves } = await getLiquidityReserves({ token, pair });
-    expect(ethReserves).to.equal(addZeroes(10, 18));
-    expect(tokenReserves).to.equal(addZeroes("10000000", DECIMALS));
+    expect(ethReserves).to.equal(ether(10, 18));
+    expect(tokenReserves).to.equal(ether(10000000));
   });
 
   it("Should allow treasury to transfer tokens during pre-sale", async function () {
-    await transferTokens({ token, from: treasury, to: account1, amount: addZeroes(1000, DECIMALS) });
+    await transferTokens({ token, from: treasury, to: account1, amount: ether(1000) });
 
     // no fees should be collected
-    expect(await token.balanceOf(account1.address)).to.equal(addZeroes(1000, DECIMALS));
+    expect(await token.balanceOf(account1.address)).to.equal(ether(1000));
   });
 
   it("Should block other accounts from transacting until trading is open", async function () {
     try {
-      await transferTokens({ token, from: account1, to: account2, amount: addZeroes(100, DECIMALS) });
+      await transferTokens({ token, from: account1, to: account2, amount: ether(100) });
     } catch (error) {
       expect(error.message).to.contain("Trading not open yet");
     }
 
-    expect(await token.balanceOf(account1.address)).to.equal(addZeroes(1000, DECIMALS));
-    expect(await token.balanceOf(account2.address)).to.equal(addZeroes(0, DECIMALS));
+    expect(await token.balanceOf(account1.address)).to.equal(ether(1000));
+    expect(await token.balanceOf(account2.address)).to.equal(ether(0));
 
     // account1 buys 1000 tokens
-    await token.connect(account1).approve(router.address, addZeroes("999999999999", DECIMALS));
+    await token.connect(account1).approve(router.address, ether(999999999999));
     try {
-      await buyTokens({ router, token, account: account1, tokenAmount: addZeroes(1000, DECIMALS) });
+      await buyTokens({ router, token, account: account1, tokenAmount: ether(1000) });
     } catch (error) {
       expect(error.message).to.contain("TRANSFER_FAILED");
     }
 
-    expect(await token.balanceOf(account1.address)).to.equal(addZeroes(1000, DECIMALS));
-    expect(await token.balanceOf(account2.address)).to.equal(addZeroes(0, DECIMALS));
+    expect(await token.balanceOf(account1.address)).to.equal(ether(1000));
+    expect(await token.balanceOf(account2.address)).to.equal(ether(0));
   });
 
   it("Should open up trading and allow accounts to transact", async function () {
     await token.connect(treasury).openTrade();
     await token.connect(treasury).launchToken();
-    await transferTokens({ token, from: account1, to: account2, amount: addZeroes(100, DECIMALS) });
-    expect(await token.balanceOf(account2.address)).to.equal(addZeroes(100, DECIMALS));
-    expect(await token.balanceOf(account1.address)).to.equal(addZeroes(900, DECIMALS));
+    await transferTokens({ token, from: account1, to: account2, amount: ether(100) });
+    expect(await token.balanceOf(account2.address)).to.equal(ether(100));
+    expect(await token.balanceOf(account1.address)).to.equal(ether(900));
   });
 
   it("Should apply buy fees when buying shares from exchange", async function () {
@@ -160,13 +159,13 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
       50 // 5%  _burnFee
     );
 
-    await buyTokens({ router, token, account: account3, tokenAmount: addZeroes(1000, DECIMALS) });
+    await buyTokens({ router, token, account: account3, tokenAmount: ether(1000) });
 
     // check that fees have been taken
-    expect(await token.balanceOf(account3.address)).to.equal(addZeroes(850, DECIMALS));
-    expect(await token.balanceOf(token.address)).to.equal(addZeroes(70, DECIMALS));
-    expect(await token.balanceOf(await token.autoLiquidityEngine())).to.equal(addZeroes(30, DECIMALS));
-    expect(await token.balanceOf(DEAD)).to.equal(addZeroes(50, DECIMALS));
+    expect(await token.balanceOf(account3.address)).to.equal(ether(850));
+    expect(await token.balanceOf(token.address)).to.equal(ether(70));
+    expect(await token.balanceOf(await token.autoLiquidityEngine())).to.equal(ether(30));
+    expect(await token.balanceOf(DEAD)).to.equal(ether(50));
   });
 
   it("Should apply sell fees when selling shares to exchange", async function () {
@@ -204,13 +203,13 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
       10 // 1%  _burnFee
     );
 
-    await sellTokens({ router, token, account: account1, tokenAmount: addZeroes(900, DECIMALS) });
+    await sellTokens({ router, token, account: account1, tokenAmount: ether(900) });
 
     // check that fees have been taken
     expect(await token.balanceOf(account1.address)).to.equal(0);
-    expect(await token.balanceOf(token.address)).to.equal(addZeroes(70 + 90, DECIMALS));
-    expect(await token.balanceOf(await token.autoLiquidityEngine())).to.equal(addZeroes(30 + 45, DECIMALS));
-    expect(await token.balanceOf(DEAD)).to.equal(addZeroes(50 + 9, DECIMALS));
+    expect(await token.balanceOf(token.address)).to.equal(ether(70 + 90));
+    expect(await token.balanceOf(await token.autoLiquidityEngine())).to.equal(ether(30 + 45));
+    expect(await token.balanceOf(DEAD)).to.equal(ether(50 + 9));
   });
 
   it("Should swap tokens collected for ETH", async function () {
@@ -223,12 +222,12 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     const safeExitEthBalanceBefore = await ethers.provider.getBalance(safeExit.address);
 
     // calculate how much eth received when swaping 160 tokens
-    expect(await token.balanceOf(token.address)).to.equal(addZeroes(160, DECIMALS));
-    const ethToReceive = await calculateEthToReceive({ token, pair, tokenAmount: addZeroes(160, DECIMALS) });
+    expect(await token.balanceOf(token.address)).to.equal(ether(160));
+    const ethToReceive = await calculateEthToReceive({ token, pair, tokenAmount: ether(160) });
 
     // sell tokens
-    await token.connect(account2).approve(router.address, addZeroes("999999999999", DECIMALS));
-    await sellTokens({ router, token, account: account2, tokenAmount: addZeroes(100, DECIMALS) });
+    await token.connect(account2).approve(router.address, ether(999999999999));
+    await sellTokens({ router, token, account: account2, tokenAmount: ether(100) });
 
     // record balances after
     const treasuryEthBalanceAfter = await ethers.provider.getBalance(treasury.address);
@@ -237,16 +236,16 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
     // check that balances have been updated
     expect(await token.balanceOf(account2.address)).to.equal(0);
-    expect(await token.balanceOf(token.address)).to.equal(addZeroes(10, DECIMALS));
+    expect(await token.balanceOf(token.address)).to.equal(ether(10));
 
     const treasuryEthDifference = treasuryEthBalanceAfter.sub(treasuryEthBalanceBefore);
     const lrfEthDifference = lrfEthBalanceAfter.sub(lrfEthBalanceBefore);
     const safeExitEthDifference = safeExitEthBalanceAfter.sub(safeExitEthBalanceBefore);
 
-    // check balances have increased by appropriate share (within 0.000000000000000001% accuracy to account for rounding)
-    expect(treasuryEthDifference).to.be.closeTo(ethToReceive.mul(55).div(160), 1);
-    expect(lrfEthDifference).to.be.closeTo(ethToReceive.mul(47).div(160), 1);
-    expect(safeExitEthDifference).to.be.closeTo(ethToReceive.mul(58).div(160), 1);
+    // check balances have increased by appropriate share (within 0.000001% accuracy to account for rounding)
+    expect(treasuryEthDifference).to.be.closeTo(ethToReceive.mul(55).div(160), ether(0.000001));
+    expect(lrfEthDifference).to.be.closeTo(ethToReceive.mul(47).div(160), ether(0.000001));
+    expect(safeExitEthDifference).to.be.closeTo(ethToReceive.mul(58).div(160), ether(0.000001));
   });
 
   it("Auto liquidity engine should should add liquidity to exchange", async function () {
@@ -257,7 +256,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     const reservesBefore = await getLiquidityReserves({ token, pair });
 
     // do a transaction
-    await token.connect(account3).transfer(account2.address, addZeroes(100, DECIMALS));
+    await token.connect(account3).transfer(account2.address, ether(100));
 
     // check dex reserves after transaction
     const reservesAfter = await getLiquidityReserves({ token, pair });
@@ -265,12 +264,14 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     const tokenReservesDifference = reservesAfter.tokenReserves.sub(reservesBefore.tokenReserves);
 
     expect(ethReservesDifference).to.equal(0);
-    expect(tokenReservesDifference).to.be.closeTo(addZeroes(80, DECIMALS), addZeroes(1, DECIMALS));
+    expect(tokenReservesDifference).to.be.closeTo(ether(80), ether(1));
   });
 
+  /*
   it("Should allow transactions when all features are enabled", async function () {
     // turn on all features
     // buy
     // sell
   });
+  */
 });
