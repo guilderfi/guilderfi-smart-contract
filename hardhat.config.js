@@ -72,6 +72,24 @@ task("merge", "Merge solidity contracts", async (taskArgs, hre) => {
   console.log("File created: ", outputFilePath);
 });
 
+task("verify-all", "Verify all contracts on etherscan")
+  .addParam("address", "Main GuilderFi contract address")
+  .setAction(async (taskArgs, hre) => {
+    const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
+    const token = await Token.attach(taskArgs.address);
+
+    const lrfAddress = await token.getLrfAddress();
+    const autoLiquidityAddress = await token.getAutoLiquidityAddress();
+    const safeExitFundAddress = await token.getSafeExitFundAddress();
+    const preSaleAddress = await token.getPreSaleAddress();
+
+    await hre.run("verify:verify", { address: token.address, network: hre.network.name });
+    await hre.run("verify:verify", { address: lrfAddress, network: hre.network.name });
+    await hre.run("verify:verify", { address: autoLiquidityAddress, network: hre.network.name });
+    await hre.run("verify:verify", { address: safeExitFundAddress, network: hre.network.name });
+    await hre.run("verify:verify", { address: preSaleAddress, network: hre.network.name });
+  });
+
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
