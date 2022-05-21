@@ -3,7 +3,7 @@ const { ethers } = require("hardhat");
 
 const {
   transferTokens,
-  buyTokens,
+  buyTokensFromDex,
   sellTokens,
   addLiquidity,
   getLiquidityReserves,
@@ -107,7 +107,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     // account1 buys 1000 tokens
     await token.connect(account1).approve(router.address, ether(999999999999));
     try {
-      await buyTokens({ router, token, account: account1, tokenAmount: ether(1000) });
+      await buyTokensFromDex({ router, pair, token, account: account1, tokenAmount: ether(1000) });
     } catch (error) {
       expect(error.message).to.contain("TRANSFER_FAILED");
     }
@@ -159,7 +159,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
       50 // 5%  _burnFee
     );
 
-    await buyTokens({ router, token, account: account3, tokenAmount: ether(1000) });
+    await buyTokensFromDex({ router, pair, token, account: account3, tokenAmount: ether(1000) });
 
     // check that fees have been taken
     expect(await token.balanceOf(account3.address)).to.equal(ether(850));

@@ -17,7 +17,7 @@ let account6;
 let account7;
 let preSale;
 
-const { tier1, tier2, tier3, publicTier, customTier } = require("./helpers/data");
+const { tier1, tier2, tier3, publicTier } = require("./helpers/data");
 
 let tokensPurchased = ether(0);
 let ethSpent = ether(0);
@@ -29,7 +29,7 @@ const testPurchase = async ({ account, ethAmount, expectedTokens }) => {
   const tokenBalanceBefore = await token.balanceOf(account.address);
   const tokenAmountBefore = tokenBalanceBefore.add(lockerBalanceBefore);
 
-  // add account to whitelist tier 1 and buy tokens
+  // buy tokens
   await preSale.connect(account).buyTokens({ value: ethAmount });
 
   // check tokens received
@@ -60,12 +60,15 @@ describe(`Testing pre-sale..`, function () {
     pair = await ethers.getContractAt("IDexPair", await token.getPair());
 
     // send 27m tokens to presale contract
-    await transferTokens({ token, from: treasury, to: preSale, amount: ether(27000000) });
+    await transferTokens({ token, from: treasury, to: preSale, amount: ether(50000000) });
   });
 
   it("Should prevent purchasing until public sale is enabled", async function () {
     expect(await preSale.isPublicSaleOpen()).to.equal(false);
-    expect(await preSale.isWhitelistSaleOpen()).to.equal(false);
+    expect(await preSale.isWhitelistSaleOpen(1)).to.equal(false);
+    expect(await preSale.isWhitelistSaleOpen(2)).to.equal(false);
+    expect(await preSale.isWhitelistSaleOpen(3)).to.equal(false);
+    expect(await preSale.isWhitelistSaleOpen(4)).to.equal(false);
 
     try {
       await preSale.connect(account1).buyTokens({ value: ether(1) });
@@ -80,7 +83,7 @@ describe(`Testing pre-sale..`, function () {
     await testPurchase({
       account: account1,
       ethAmount: publicTier.maxAmount,
-      expectedTokens: publicTier.maxAmount.mul(publicTier.tokensPerEth),
+      expectedTokens: publicTier.maxAmount.mul(publicTier.tokensPerEth).div(ether(1)),
     });
 
     // close sale
@@ -89,9 +92,12 @@ describe(`Testing pre-sale..`, function () {
 
   it("Should prevent whitelist purchasing until whitelist sale is enabled", async function () {
     // open whiltelist sale
-    await preSale.connect(treasury).openWhitelistSale(true);
+    await preSale.connect(treasury).openWhitelistSale(1, true);
     expect(await preSale.isPublicSaleOpen()).to.equal(false);
-    expect(await preSale.isWhitelistSaleOpen()).to.equal(true);
+    expect(await preSale.isWhitelistSaleOpen(1)).to.equal(true);
+    expect(await preSale.isWhitelistSaleOpen(2)).to.equal(false);
+    expect(await preSale.isWhitelistSaleOpen(3)).to.equal(false);
+    expect(await preSale.isWhitelistSaleOpen(4)).to.equal(false);
 
     try {
       await preSale.connect(account1).buyTokens({ value: ether(1) });
@@ -103,7 +109,7 @@ describe(`Testing pre-sale..`, function () {
     await preSale.connect(treasury).addToWhitelist([account2.address], tier1.tierId);
 
     // close white list sale
-    await preSale.connect(treasury).openWhitelistSale(false);
+    await preSale.connect(treasury).openWhitelistSale(1, false);
 
     try {
       await preSale.connect(account2).buyTokens({ value: ether(1) });
@@ -112,7 +118,7 @@ describe(`Testing pre-sale..`, function () {
     }
 
     // open whitelist sale and try a non whitelisted wallet
-    await preSale.connect(treasury).openWhitelistSale(true);
+    await preSale.connect(treasury).openWhitelistSale(1, true);
     try {
       await preSale.connect(account1).buyTokens({ value: ether(1) });
     } catch (error) {
@@ -137,21 +143,46 @@ describe(`Testing pre-sale..`, function () {
     await testPurchase({
       account: account2,
       ethAmount: tier1.maxAmount,
-      expectedTokens: tier1.maxAmount.mul(tier1.tokensPerEth),
+      expectedTokens: tier1.maxAmount.mul(tier1.tokensPerEth).div(ether(1)),
     });
 
+    // try tier 2
+    try {
+      await preSale.connect(account3).buyTokens({ value: ether(1) });
+    } catch (error) {
+      expect(error.message).to.contain("Public sale is not open");
+    }
     await preSale.connect(treasury).addToWhitelist([account3.address], tier2.tierId);
+    try {
+      await preSale.connect(account3).buyTokens({ value: ether(1) });
+    } catch (error) {
+      expect(error.message).to.contain("Whitelist sale is not open");
+    }
+    await preSale.connect(treasury).openWhitelistSale(2, true);
     await testPurchase({
       account: account3,
       ethAmount: tier2.maxAmount,
-      expectedTokens: tier2.maxAmount.mul(tier2.tokensPerEth),
+      expectedTokens: tier2.maxAmount.mul(tier2.tokensPerEth).div(ether(1)),
     });
 
+    // try tier 3
+    try {
+      await preSale.connect(account4).buyTokens({ value: ether(1) });
+    } catch (error) {
+      expect(error.message).to.contain("Public sale is not open");
+    }
+    await preSale.connect(treasury).addToWhitelist([account4.address], tier3.tierId);
+    try {
+      await preSale.connect(account4).buyTokens({ value: ether(1) });
+    } catch (error) {
+      expect(error.message).to.contain("Whitelist sale is not open");
+    }
+    await preSale.connect(treasury).openWhitelistSale(3, true);
     await preSale.connect(treasury).addToWhitelist([account4.address], tier3.tierId);
     await testPurchase({
       account: account4,
       ethAmount: tier3.maxAmount,
-      expectedTokens: tier3.maxAmount.mul(tier3.tokensPerEth),
+      expectedTokens: tier3.maxAmount.mul(tier3.tokensPerEth).div(ether(1)),
     });
   });
 
@@ -159,13 +190,16 @@ describe(`Testing pre-sale..`, function () {
     // open whiltelist + public sale
     await preSale.connect(treasury).openPublicSale(true);
     expect(await preSale.isPublicSaleOpen()).to.equal(true);
-    expect(await preSale.isWhitelistSaleOpen()).to.equal(true);
+    expect(await preSale.isWhitelistSaleOpen(1)).to.equal(true);
+    expect(await preSale.isWhitelistSaleOpen(2)).to.equal(true);
+    expect(await preSale.isWhitelistSaleOpen(3)).to.equal(true);
+    expect(await preSale.isWhitelistSaleOpen(4)).to.equal(false);
 
     // test public sale purchase (non-whitelisted)
     await testPurchase({
       account: account5,
       ethAmount: publicTier.maxAmount,
-      expectedTokens: publicTier.maxAmount.mul(publicTier.tokensPerEth),
+      expectedTokens: publicTier.maxAmount.mul(publicTier.tokensPerEth).div(ether(1)),
     });
 
     // add wallet to whitelist and test for whitelist pricing
@@ -173,25 +207,23 @@ describe(`Testing pre-sale..`, function () {
     await testPurchase({
       account: account6,
       ethAmount: tier1.maxAmount,
-      expectedTokens: tier1.maxAmount.mul(tier1.tokensPerEth),
+      expectedTokens: tier1.maxAmount.mul(tier1.tokensPerEth).div(ether(1)),
     });
   });
 
   it("Should allow for custom pricing tiers to be configured", async function () {
-    expect(await preSale.isPublicSaleOpen()).to.equal(true);
-    expect(await preSale.isWhitelistSaleOpen()).to.equal(true);
+    // add custom tier - min:25, max:50, 2000 tokens per eth
+    await preSale.connect(treasury).addCustomTier(99, ether(25), ether(50), ether(2000));
+    await preSale.connect(treasury).openWhitelistSale(99, true);
 
     // add account to custom tier
-    await preSale.connect(treasury).addToWhitelist([account7.address], customTier.tierId);
-
-    // add wallet to whitelist and test for whitelist pricing
-    await preSale.connect(treasury).setCustomLimit([account7.address], ether(50));
+    await preSale.connect(treasury).addToWhitelist([account7.address], 99);
 
     // check transaction
     await testPurchase({
       account: account7,
       ethAmount: ether(50),
-      expectedTokens: ether(50).mul(customTier.tokensPerEth),
+      expectedTokens: ether(50 * 2000),
     });
 
     // reject any more transactions
@@ -201,14 +233,17 @@ describe(`Testing pre-sale..`, function () {
       expect(error.message).to.contain("Total purchases exceed limit");
     }
 
-    // allow wallet to purchase another 5 ether worth
-    await preSale.connect(treasury).setCustomLimit([account7.address], ether(75));
+    // create another tier and move user to second tier
+    // add custom tier - min:25, max:75, 2000 tokens per eth
+    await preSale.connect(treasury).addCustomTier(100, ether(25), ether(75), ether(1000));
+    await preSale.connect(treasury).openWhitelistSale(100, true);
+    await preSale.connect(treasury).addToWhitelist([account7.address], 100);
 
     // check transaction
     await testPurchase({
       account: account7,
       ethAmount: ether(25),
-      expectedTokens: ether(25).mul(customTier.tokensPerEth),
+      expectedTokens: ether(25 * 1000),
     });
 
     // reject any more transactions

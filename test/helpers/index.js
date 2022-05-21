@@ -3,6 +3,7 @@ const { BigNumber } = require("ethers");
 const clc = require("cli-color");
 
 const DECIMALS = 18;
+const MAX_INT = ethers.constants.MaxUint256;
 
 const addZeroes = (num, zeroes) => {
   return BigNumber.from(num).mul(BigNumber.from(10).pow(zeroes));
@@ -18,9 +19,17 @@ const print = (msg) => {
   console.log(clc.xterm(8)("      " + msg));
 };
 
+// calculate gas used in a transaction
+const gasUsed = async (tx) => {
+  const receipt = await tx.wait();
+  const { cumulativeGasUsed, effectiveGasPrice } = receipt;
+  const _gasUsed = cumulativeGasUsed.mul(effectiveGasPrice);
+  return _gasUsed;
+};
+
 const transferTokens = async ({ token, from, to, amount }) => {
-  const transaction = await token.connect(from).transfer(to.address, amount);
-  await transaction.wait();
+  const tx = await token.connect(from).transfer(to.address, amount);
+  return tx;
 };
 
 const transferEth = async ({ from, to, amount }) => {
@@ -28,36 +37,62 @@ const transferEth = async ({ from, to, amount }) => {
     to: to.address,
     value: amount,
   });
-  await tx.wait();
+
+  return tx;
 };
 
 const addLiquidity = async ({ router, from, token, tokenAmount, ethAmount }) => {
-  const timestamp = (await ethers.provider.getBlock("latest")).timestamp + 100;
-  await router.connect(from).addLiquidityETH(token.address, tokenAmount, 0, 0, from.address, timestamp, {
+  const timestamp = (await ethers.provider.getBlock("latest")).timestamp + 1;
+  const tx = await router.connect(from).addLiquidityETH(token.address, tokenAmount, 0, 0, from.address, timestamp, {
     value: ethAmount,
   });
+
+  return tx;
 };
 
-const buyTokens = async ({ router, token, account, tokenAmount }) => {
-  await router
+const buyTokensFromDex = async ({ router, pair, token, account, tokenAmount }) => {
+  const { ethReserves, tokenReserves } = await getLiquidityReserves({ token, pair });
+
+  // calculate how much eth is needed
+  const numerator = ethReserves.mul(tokenAmount).mul(10000);
+  const denominator = tokenReserves.sub(tokenAmount).mul(9970);
+  const ethAmount = numerator.div(denominator).add(1);
+
+  const tx = await router
     .connect(account)
     .swapETHForExactTokens(
       tokenAmount,
       [await router.WETH(), token.address],
       account.address,
-      (await ethers.provider.getBlock("latest")).timestamp + 100,
-      { value: BigNumber.from("10000000000000000") }
+      (await ethers.provider.getBlock("latest")).timestamp + 1,
+      { value: ethAmount }
     );
+
+  return tx;
+};
+
+const buyTokensFromDexByExactEth = async ({ router, token, account, ethAmount }) => {
+  const tx = await router.connect(account).swapExactETHForTokens(
+    0, // min number of tokens
+    [await router.WETH(), token.address],
+    account.address,
+    (await ethers.provider.getBlock("latest")).timestamp + 1,
+    { value: ethAmount }
+  );
+
+  return tx;
 };
 
 const sellTokens = async ({ router, token, account, tokenAmount }) => {
-  await router.connect(account).swapExactTokensForETHSupportingFeeOnTransferTokens(
+  const tx = await router.connect(account).swapExactTokensForETHSupportingFeeOnTransferTokens(
     tokenAmount,
     0, // minimum ETH out
     [token.address, await router.WETH()], // pair
     account.address, // recipient
-    (await ethers.provider.getBlock("latest")).timestamp + 100
+    (await ethers.provider.getBlock("latest")).timestamp + 1
   );
+
+  return tx;
 };
 
 const getLiquidityReserves = async ({ token, pair }) => {
@@ -144,16 +179,19 @@ const printStatus = async ({ token, treasury, lrf, safeExit, pair }) => {
 
 module.exports = {
   DECIMALS,
+  MAX_INT,
   ether,
   addZeroes,
   print,
   transferTokens,
   transferEth,
-  buyTokens,
+  buyTokensFromDex,
+  buyTokensFromDexByExactEth,
   sellTokens,
   addLiquidity,
   getLiquidityReserves,
   calculateEthToReceive,
   calculateLPtokens,
   printStatus,
+  gasUsed,
 };

@@ -17,6 +17,8 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   using Counters for Counters.Counter;
   Counters.Counter private _tokenId;
 
+  address private constant DEAD = 0x000000000000000000000000000000000000dEaD;
+
   struct InsuranceStatus {
     uint256 walletPurchaseAmount;
     uint256 payoutAmount;
@@ -168,8 +170,8 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     require(address(this).balance >= finalPayoutAmount, "Insufficient SafeExit funds");
     payable(msg.sender).transfer(finalPayoutAmount);
 
-    // TODO destroy all tokens in user's wallet.
-    // re=entry => "isClaiming"?
+    // burn user's tokens (will need user to pre-approve safe exit to run transferFrom)
+    token.transferFrom(msg.sender, DEAD, token.balanceOf(msg.sender));
   }
 
   function mint(address _walletAddress) external override onlyPresale {

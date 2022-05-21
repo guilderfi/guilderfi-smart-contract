@@ -33,7 +33,7 @@ describe(`Testing pre-sale refund scenario..`, function () {
 
   it("Should allow users to claim redunds when sale is cancelled", async function () {
     await preSale.connect(treasury).openPublicSale(true);
-    await preSale.connect(treasury).openWhitelistSale(true);
+    await preSale.connect(treasury).openWhitelistSale(1, true);
 
     // buy public sale
     await preSale.connect(account1).buyTokens({ value: publicTier.maxAmount });
