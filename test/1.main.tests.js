@@ -289,5 +289,20 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
       tokenAmount: ether(1000),
       expiry: (await ethers.provider.getBlock("latest")).timestamp + 86400,
     });
+
+    /*
+    const { tokenReserves, ethReserves } = await getLiquidityReserves({ token, pair });
+
+    await router
+      .connect(treasury)
+      .removeLiquidityETHSupportingFeeOnTransferTokens(
+        token.address,
+        await pair.balanceOf(treasury.address),
+        tokenReserves.div(2),
+        ethReserves.div(2),
+        treasury.address,
+        (await ethers.provider.getBlock("latest")).timestamp + 86400
+      );
+    */
   });
 });

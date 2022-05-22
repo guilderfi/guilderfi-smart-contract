@@ -1,8 +1,18 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-const { ether, print, transferTokens, transferEth, buyTokensFromDexByExactEth, addLiquidity, gasUsed, MAX_INT, printStatus, getLiquidityReserves, buyTokensFromDex } = require("./helpers");
-const { tier1, tier2, tier3, tier4, publicSale } = require("./helpers/data");
+const {
+  ether,
+  print,
+  transferTokens,
+  transferEth,
+  buyTokensFromDexByExactEth,
+  addLiquidity,
+  gasUsed,
+  MAX_INT,
+  getLiquidityReserves,
+} = require("./helpers");
+const { tier1, tier2, tier3 } = require("./helpers/data");
 
 const TOKEN_NAME = "GuilderFi";
 
@@ -16,16 +26,12 @@ let treasury;
 let account1;
 let account2;
 let account3;
-let account4;
-let account5;
 let account6;
-let account7;
-let account8;
 
 describe(`Testing safe exit..`, function () {
   before(async function () {
     // Set up accounts
-    [deployer, treasury, account1, account2, account3, account4, account5, account6, account7, account8] = await ethers.getSigners();
+    [deployer, treasury, account1, account2, account3, , , account6] = await ethers.getSigners();
 
     print(`Deploying smart contracts..`);
 
@@ -67,6 +73,8 @@ describe(`Testing safe exit..`, function () {
   it("Should mint correct number of NFTs with each purchase", async function () {
     // check each tier1,2,3,public sale receives an NFT
     // open sale
+    expect(await safeExit.issuedTokens()).to.equal(0);
+
     await preSale.connect(treasury).openPublicSale(true);
     await preSale.connect(treasury).openWhitelistSale(1, true);
     await preSale.connect(treasury).openWhitelistSale(2, true);
@@ -96,6 +104,8 @@ describe(`Testing safe exit..`, function () {
     expect(await safeExit.balanceOf(account1.address)).to.equal(1);
     expect(await safeExit.balanceOf(account2.address)).to.equal(1);
     expect(await safeExit.balanceOf(account3.address)).to.equal(1);
+
+    expect(await safeExit.issuedTokens()).to.equal(3);
   });
 
   it("Should fill the NFTs with each purchase during pre-sale", async function () {
@@ -129,6 +139,7 @@ describe(`Testing safe exit..`, function () {
   });
 
   it("Should fill NFTs during post-sale when buying from exchange", async function () {
+    // create random wallet and fund with 10 ether
     const wallet = ethers.Wallet.createRandom().connect(ethers.provider);
     await transferEth({ from: deployer, to: wallet, amount: ether(10) });
 
@@ -143,11 +154,11 @@ describe(`Testing safe exit..`, function () {
     // const tx = await buyTokensFromDex({ router, pair, token, account: wallet, tokenAmount: ether(1) });
     const gas = await gasUsed(tx);
 
-    console.log(`Tokens received: ${ethers.utils.formatEther(await token.balanceOf(wallet.address))}`);
+    print(`Tokens received: ${ethers.utils.formatEther(await token.balanceOf(wallet.address))}`);
 
     const { ethReserves, tokenReserves } = await getLiquidityReserves({ token, pair });
-    console.log(`LP - eth:         ${ethers.utils.formatEther(ethReserves, { comify: true })}`);
-    console.log(`LP - tokens:      ${ethers.utils.formatEther(tokenReserves, { comify: true })}`);
+    print(`LP - eth:         ${ethers.utils.formatEther(ethReserves, { comify: true })}`);
+    print(`LP - tokens:      ${ethers.utils.formatEther(tokenReserves, { comify: true })}`);
 
     // check eth balance has reduced by 0.5 eth
     const ethBalanceAfterBuy = await ethers.provider.getBalance(wallet.address);
@@ -155,7 +166,7 @@ describe(`Testing safe exit..`, function () {
     expect(ethSpent).to.equal(ether(1).add(gas)); // account for gas
 
     const status = await safeExit.connect(wallet).getInsuranceStatus(wallet.address);
-    console.log(`Eth Purchases recorded: ${ethers.utils.formatEther(status.totalPurchaseAmount)})`);
+    print(`Eth Purchases recorded: ${ethers.utils.formatEther(status.totalPurchaseAmount)})`);
   });
 
   /*

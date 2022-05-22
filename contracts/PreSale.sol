@@ -158,7 +158,7 @@ contract PreSale is IPreSale {
     // gift a safe exit NFT if its the first time buying
     if (isFirstPurchase) {
       ISafeExitFund _safeExit = ISafeExitFund(_token.getSafeExitFundAddress());
-      _safeExit.mint(msg.sender);
+      _safeExit.mintRandom(msg.sender);
       _safeExit.capturePresalePurchaseAmount(msg.sender, msg.value);
     }
   }

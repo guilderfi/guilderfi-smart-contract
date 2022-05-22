@@ -43,11 +43,11 @@ interface IGuilderFi {
     function setAutoSwap(bool _flag) external;
     function setAutoAddLiquidity(bool _flag) external;
     function setAutoRebase(bool _flag) external;
-    function setMaxRebaseBatchSize(uint256 _maxRebaseBatchSize) external;
-    function setDex(address routerAddress) external;
     function setAutoLiquidityFrequency(uint256 _frequency) external;
     function setLrfFrequency(uint256 _frequency) external;
-    function setSwapFrequency(uint256 _frequency) external;
+    function setSwapFrequency(uint256 _frequency) external;    
+    function setMaxRebaseBatchSize(uint256 _maxRebaseBatchSize) external;
+    function setDex(address routerAddress) external;
     function setAddresses(
         address treasuryAddress,
         address lrfAddress,
@@ -89,6 +89,7 @@ interface IGuilderFi {
     function swapEnabled() external view returns (bool);
     function autoRebaseEnabled() external view returns (bool);
     function autoAddLiquidityEnabled() external view returns (bool);
+    function lrfEnabled() external view returns (bool);
 
     // Date/time stamps
     function initRebaseStartTime() external view returns (uint256);

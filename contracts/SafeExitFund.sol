@@ -60,7 +60,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   // maps
   mapping(address => uint256) private purchaseAmount;
   mapping(uint256 => bool) private isUsed;
-  mapping(uint256 => uint256) private overrideLimit;
+  mapping(uint256 => uint256) private _customLimit;
 
   // date when safeexit can be claimed
   uint256 private _activationDate;
@@ -174,12 +174,20 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     token.transferFrom(msg.sender, DEAD, token.balanceOf(msg.sender));
   }
 
-  function mint(address _walletAddress) external override onlyPresale {
+  function mintRandom(address _walletAddress) external override onlyPresale {
     uint256 tokenId = _tokenId.current();
     require(tokenId < _maxSupply, "Cannot mint more NFTs");
     _mint(_walletAddress, tokenId);
     _tokenId.increment();
   }
+
+  function mint(address _walletAddress, uint256 _maxInsuranceAmount) external override onlyTokenOwner {
+    uint256 tokenId = _tokenId.current();
+    require(tokenId < _maxSupply, "Cannot mint more NFTs");
+    _mint(_walletAddress, tokenId);
+    _customLimit[tokenId] = _maxInsuranceAmount;
+    _tokenId.increment();
+  }  
 
   /**
    * Public getter functions
@@ -188,6 +196,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   function unrevealedMetadataUri() public override view returns (string memory) { return _unrevealedMetadataUri; }
   function usedMetadataUri() public override view returns (string memory) { return _usedMetadataUri; }
   function activationDate() public override view returns (uint256) { return _activationDate; }
+  function issuedTokens() public override view returns (uint256) { return _tokenId.current(); }
 
   function tokenURI(uint256 _nftId) public view override(ISafeExitFund, ERC721) returns (string memory) {
     require(_exists(_nftId), "Token does not exist");
@@ -273,8 +282,8 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
       if (!isUsed[nftId]) {
 
         // if not, check for override
-        if (overrideLimit[nftId] > 0) {
-          totalInsurance = totalInsurance.add(overrideLimit[nftId]);
+        if (_customLimit[nftId] > 0) {
+          totalInsurance = totalInsurance.add(_customLimit[nftId]);
         }
         else {
           // if not override, use package data
@@ -315,8 +324,12 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   /**
    * Other external override setter functions
    */
-  function overrideNftLimit(uint256 _nftId, uint256 _limit) public override onlyTokenOwner {
-    overrideLimit[_nftId] = _limit;
+  function setMaxSupply(uint256 newMaxSupply) external override onlyTokenOwner {
+    _maxSupply = newMaxSupply;
+  }
+
+  function setCustomInsuranceLimit(uint256 _nftId, uint256 _limit) public override onlyTokenOwner {
+    _customLimit[_nftId] = _limit;
   }
 
   function setMetadataUri(uint256 _packageId, string memory _uri) external override onlyTokenOwner {

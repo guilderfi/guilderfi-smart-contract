@@ -26,7 +26,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     // TOKEN SETTINGS
     string private _name = "GuilderFi";
-    string private _symbol = "NPlus1";
+    string private _symbol = "N1";
     uint8 private constant DECIMALS = 18;
 
     // CONSTANTS
@@ -35,6 +35,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     address private constant ZERO = 0x0000000000000000000000000000000000000000;
 
     // SUPPLY CONSTANTS
+    // uint256 private constant INITIAL_FRAGMENTS_SUPPLY = 100000 * 10**DECIMALS; // 100,000 for testing
     uint256 private constant INITIAL_FRAGMENTS_SUPPLY = 100 * 10**6 * 10**DECIMALS; // 100 million
     uint256 private constant MAX_SUPPLY = 82 * 10**21 * 10**DECIMALS;
     uint256 private constant TOTAL_GONS = MAX_UINT256 - (MAX_UINT256 % INITIAL_FRAGMENTS_SUPPLY);
@@ -88,6 +89,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     bool public override swapEnabled = true;
     bool public override autoRebaseEnabled = true;
     bool public override autoAddLiquidityEnabled = true;
+    bool public override lrfEnabled = true;
 
     // FREQUENCIES
     uint256 public autoLiquidityFrequency = 2 days;
@@ -455,7 +457,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
             autoAddLiquidityEnabled && 
             !_inSwap && 
             msg.sender != address(_pair) &&
-            block.timestamp >= (lastAddLiquidityTime + autoLiquidityFrequency); 
+            (autoLiquidityFrequency == 0 || (block.timestamp >= (lastAddLiquidityTime + autoLiquidityFrequency))); 
     }
 
     function shouldSwapBack() internal view returns (bool) {
@@ -463,13 +465,14 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
             !_inSwap &&
             swapEnabled &&
             msg.sender != address(_pair) &&
-            block.timestamp >= (lastSwapTime + swapFrequency);
+            (swapFrequency == 0 || (block.timestamp >= (lastSwapTime + swapFrequency)));
     }
 
     function shouldExecuteLrf() internal view returns (bool) {
         return
+            lrfEnabled &&
             hasLaunched &&
-            block.timestamp >= (lastLrfExecutionTime + lrfFrequency); 
+            (lrfFrequency == 0 || (block.timestamp >= (lastLrfExecutionTime + lrfFrequency))); 
     }
 
     /*

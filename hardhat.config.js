@@ -35,6 +35,24 @@ task("deploy", "Deploys the contract to the blockchain", async (taskArgs, hre) =
   console.log("Token deployed to contract address: ", token.address);
 });
 
+task("deploy-and-verify", "Deploys the contract to the blockchain", async (taskArgs, hre) => {
+  const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
+  const token = await Token.deploy();
+
+  console.log("Token deployed to contract address: ", token.address);
+
+  const lrfAddress = await token.getLrfAddress();
+  const autoLiquidityAddress = await token.getAutoLiquidityAddress();
+  const safeExitFundAddress = await token.getSafeExitFundAddress();
+  const preSaleAddress = await token.getPreSaleAddress();
+
+  await hre.run("verify:verify", { address: token.address, network: hre.network.name });
+  await hre.run("verify:verify", { address: lrfAddress, network: hre.network.name });
+  await hre.run("verify:verify", { address: autoLiquidityAddress, network: hre.network.name });
+  await hre.run("verify:verify", { address: safeExitFundAddress, network: hre.network.name });
+  await hre.run("verify:verify", { address: preSaleAddress, network: hre.network.name });
+});
+
 task("presale", "Run presale stuff", async (taskArgs, hre) => {
   const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
   const PreSale = await hre.ethers.getContractFactory("PreSale");
