@@ -44,7 +44,7 @@ interface IGuilderFi {
     function setAutoAddLiquidity(bool _flag) external;
     function setAutoRebase(bool _flag) external;
     function setMaxRebaseBatchSize(uint256 _maxRebaseBatchSize) external;
-    function setDex(address routerAddress, address pairAddress) external;
+    function setDex(address routerAddress) external;
     function setAutoLiquidityFrequency(uint256 _frequency) external;
     function setLrfFrequency(uint256 _frequency) external;
     function setSwapFrequency(uint256 _frequency) external;

@@ -83,13 +83,13 @@ const buyTokensFromDexByExactEth = async ({ router, token, account, ethAmount })
   return tx;
 };
 
-const sellTokens = async ({ router, token, account, tokenAmount }) => {
+const sellTokens = async ({ router, token, account, tokenAmount, expiry }) => {
   const tx = await router.connect(account).swapExactTokensForETHSupportingFeeOnTransferTokens(
     tokenAmount,
     0, // minimum ETH out
     [token.address, await router.WETH()], // pair
     account.address, // recipient
-    (await ethers.provider.getBlock("latest")).timestamp + 1
+    expiry ?? (await ethers.provider.getBlock("latest")).timestamp + 1
   );
 
   return tx;

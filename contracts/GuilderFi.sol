@@ -62,10 +62,12 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     ISafeExitFund public safeExitFund;
     IPreSale public preSale;
     
-    // DEX ADDRESSES
+    // DEX ROUTER ADDRESS
     // address private constant DEX_ROUTER_ADDRESS = 0x10ED43C718714eb63d5aA57B78B54704E256024E; // PancakeSwap BSC Mainnet
-    address private constant DEX_ROUTER_ADDRESS = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1; // PancakeSwap BSC Testnet
-
+    // address private constant DEX_ROUTER_ADDRESS = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1; // PancakeSwap BSC Testnet
+    // PancakeSwap BSC Testnet -> https://pancake.kiemtienonline360.com/
+    address private constant DEX_ROUTER_ADDRESS = 0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3; 
+    
     // FEES
     uint256 private constant MAX_BUY_FEES = 200; // 20%
     uint256 private constant MAX_SELL_FEES = 250; // 25%
@@ -554,9 +556,17 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         maxRebaseBatchSize = _maxRebaseBatchSize;
     }
 
-    function setDex(address _routerAddress, address _pairAddress) external override onlyOwner {
+    function setDex(address _routerAddress) external override onlyOwner {
         _router = IDexRouter(_routerAddress);
-        _pair = IDexPair(_pairAddress);
+
+        IDexFactory factory = IDexFactory(_router.factory());
+        address pairAddress = factory.getPair(_router.WETH(), address(this));
+        
+        if (pairAddress == address(0)) {
+            pairAddress = IDexFactory(_router.factory()).createPair(_router.WETH(), address(this));
+        }
+        _pair = IDexPair(address(pairAddress));
+        _allowedFragments[address(this)][address(_router)] = type(uint256).max;        
     }
 
     function setAutoLiquidityFrequency(uint256 _frequency) external override onlyOwner {

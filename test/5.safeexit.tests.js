@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-const { ether, print, transferTokens, transferEth, buyTokensFromDexByExactEth, addLiquidity, gasUsed, MAX_INT, printStatus, getLiquidityReserves } = require("./helpers");
+const { ether, print, transferTokens, transferEth, buyTokensFromDexByExactEth, addLiquidity, gasUsed, MAX_INT, printStatus, getLiquidityReserves, buyTokensFromDex } = require("./helpers");
 const { tier1, tier2, tier3, tier4, publicSale } = require("./helpers/data");
 
 const TOKEN_NAME = "GuilderFi";
@@ -9,6 +9,7 @@ const TOKEN_NAME = "GuilderFi";
 let token;
 let router;
 let pair;
+let deployer;
 let preSale;
 let safeExit;
 let treasury;
@@ -24,7 +25,7 @@ let account8;
 describe(`Testing safe exit..`, function () {
   before(async function () {
     // Set up accounts
-    [, treasury, account1, account2, account3, account4, account5, account6, account7, account8] = await ethers.getSigners();
+    [deployer, treasury, account1, account2, account3, account4, account5, account6, account7, account8] = await ethers.getSigners();
 
     print(`Deploying smart contracts..`);
 
@@ -52,8 +53,8 @@ describe(`Testing safe exit..`, function () {
     await token.connect(treasury).approve(router.address, MAX_INT);
 
     // Add 10 million tokens + 10 eth into liquidity
-    const tokenAmount = ether(10000000);
-    const ethAmount = ether(10);
+    const tokenAmount = ether(100);
+    const ethAmount = ether(100);
     await addLiquidity({
       router,
       from: treasury,
@@ -127,34 +128,37 @@ describe(`Testing safe exit..`, function () {
     expect(await token.balanceOf(account6.address)).to.equal(0);
   });
 
-  /*
   it("Should fill NFTs during post-sale when buying from exchange", async function () {
-    // check eth balance before buying from exchange
-    expect(await token.balanceOf(account7.address)).to.equal(0);
+    const wallet = ethers.Wallet.createRandom().connect(ethers.provider);
+    await transferEth({ from: deployer, to: wallet, amount: ether(10) });
 
     // check eth balance before buying from exchange
-    const ethBalanceBeforeBuy = await ethers.provider.getBalance(account7.address);
+    expect(await token.balanceOf(wallet.address)).to.equal(0);
 
-    console.log(await token.balanceOf(account7.address));
+    // check eth balance before buying from exchange
+    const ethBalanceBeforeBuy = await ethers.provider.getBalance(wallet.address);
+
     // buy exact amount of eth worth of tokens from exchange
-    const tx = await buyTokensFromDexByExactEth({ router, token, account: account7, ethAmount: ether(0.1) });
+    const tx = await buyTokensFromDexByExactEth({ router, token, account: wallet, ethAmount: ether(1) });
+    // const tx = await buyTokensFromDex({ router, pair, token, account: wallet, tokenAmount: ether(1) });
     const gas = await gasUsed(tx);
 
-    console.log(await token.balanceOf(account7.address));
+    console.log(`Tokens received: ${ethers.utils.formatEther(await token.balanceOf(wallet.address))}`);
 
     const { ethReserves, tokenReserves } = await getLiquidityReserves({ token, pair });
     console.log(`LP - eth:         ${ethers.utils.formatEther(ethReserves, { comify: true })}`);
     console.log(`LP - tokens:      ${ethers.utils.formatEther(tokenReserves, { comify: true })}`);
 
     // check eth balance has reduced by 0.5 eth
-    const ethBalanceAfterBuy = await ethers.provider.getBalance(account7.address);
-    const ethSpent = ethBalanceBeforeBuy.sub(ethBalanceAfterBuy).sub(gas);
-    expect(ethSpent).to.equal(ether(0.1)); // account for gas
+    const ethBalanceAfterBuy = await ethers.provider.getBalance(wallet.address);
+    const ethSpent = ethBalanceBeforeBuy.sub(ethBalanceAfterBuy);
+    expect(ethSpent).to.equal(ether(1).add(gas)); // account for gas
 
-    const status = await safeExit.connect(account7).getInsuranceStatus(account7.address);
-    console.log(status);
+    const status = await safeExit.connect(wallet).getInsuranceStatus(wallet.address);
+    console.log(`Eth Purchases recorded: ${ethers.utils.formatEther(status.totalPurchaseAmount)})`);
   });
 
+  /*
   it("Should fill NFTs during post-sale when buying from exchange", async function () {
     // check eth balance before buying from exchange
     const ethBalanceBeforeBuy = await ethers.provider.getBalance(account7.address);

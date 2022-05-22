@@ -11,6 +11,7 @@ const {
   calculateLPtokens,
   ether,
   print,
+  MAX_INT,
 } = require("./helpers");
 
 const TOKEN_NAME = "GuilderFi";
@@ -267,11 +268,26 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(tokenReservesDifference).to.be.closeTo(ether(80), ether(1));
   });
 
-  /*
   it("Should allow transactions when all features are enabled", async function () {
-    // turn on all features
-    // buy
-    // sell
+    await token.connect(treasury).setAutoLiquidityFrequency(0);
+    await token.connect(treasury).setLrfFrequency(0);
+    await token.connect(treasury).setSwapFrequency(0);
+    await token.connect(treasury).setAutoRebase(true);
+    await token.connect(treasury).setAutoAddLiquidity(true);
+    await token.connect(treasury).setAutoSwap(true);
+
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine");
+
+    await token.connect(treasury).approve(await token.getRouter(), MAX_INT);
+    const tx = await buyTokensFromDex({ router, pair, token, account: treasury, tokenAmount: ether(1000) });
+    await tx.wait();
+    await sellTokens({
+      router,
+      token,
+      account: treasury,
+      tokenAmount: ether(1000),
+      expiry: (await ethers.provider.getBlock("latest")).timestamp + 86400,
+    });
   });
-  */
 });
