@@ -14,6 +14,7 @@ import "./interfaces/IDexFactory.sol";
 import "./interfaces/IGuilderFi.sol";
 
 // Other contracts
+import "./SwapEngine.sol";
 import "./LiquidityReliefFund.sol";
 import "./AutoLiquidityEngine.sol";
 import "./SafeExitFund.sol";
@@ -58,6 +59,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     address internal _burnAddress = DEAD;
 
     // OTHER CONTRACTS
+    ISwapEngine public swapEngine;
     ILiquidityReliefFund public lrf;
     IAutoLiquidityEngine public autoLiquidityEngine;
     ISafeExitFund public safeExitFund;
@@ -68,7 +70,8 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     // address private constant DEX_ROUTER_ADDRESS = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1; // PancakeSwap BSC Testnet
     // PancakeSwap BSC Testnet -> https://pancake.kiemtienonline360.com/
     address private constant DEX_ROUTER_ADDRESS = 0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3; 
-    
+    // address private constant DEX_ROUTER_ADDRESS = 0xc9C6f026E489e0A8895F67906ef1627f1E56860d; // AVAX Fuji OpenSwap router
+
     // FEES
     uint256 private constant MAX_BUY_FEES = 200; // 20%
     uint256 private constant MAX_SELL_FEES = 250; // 25%
@@ -79,11 +82,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     
     // SELL FEES | Treasury = 4% | LRF = 7% | Auto-Liquidity = 6% | SafeExit = 1% | Burn = 0
     Fee private _sellFees = Fee(40, 70, 60, 10, 0, 180);
-
-    // FEES COLLECTED
-    uint256 internal _treasuryFeesCollected;
-    uint256 internal _lrfFeesCollected;
-    uint256 internal _safeExitFeesCollected;
 
     // SETTING FLAGS
     bool public override swapEnabled = true;
@@ -160,6 +158,11 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         // exempt fees from contract + treasury
         _isFeeExempt[_treasuryAddress] = true;
         _isFeeExempt[address(this)] = true;
+
+        // init swap engine
+        swapEngine = new SwapEngine();
+        _allowedFragments[address(swapEngine)][address(_router)] = type(uint256).max;
+        _isFeeExempt[address(swapEngine)] = true;
 
         // init LRF
         lrf = new LiquidityReliefFund();
@@ -294,7 +297,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         if (_inSwap) {
             return _basicTransfer(sender, recipient, amount);
         }
-
+        
         preTransactionActions(sender, recipient, amount);
 
         uint256 gonAmount = amount.mul(_gonsPerFragment);
@@ -315,9 +318,11 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         return true;
     }
 
-    function preTransactionActions(address sender, address recipient, uint256 amount) internal {
+    function preTransactionActions(address sender, address recipient, uint256 amount) internal swapping {
 
-        safeExitFund.execute(sender, recipient, amount);
+        if (shouldExecuteSafeExit()) {
+            executeSafeExit(sender, recipient, amount);
+        }
 
         if (shouldSwapBack()) {
             swapBack();
@@ -341,93 +346,60 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         Fee storage fees = (recipient == address(_pair)) ? _sellFees : _buyFees;
 
         uint256 burnAmount      = fees.burnFee.mul(gonAmount).div(FEE_DENOMINATOR);
-        uint256 treasuryAmount  = fees.treasuryFee.mul(gonAmount).div(FEE_DENOMINATOR);
         uint256 lrfAmount       = fees.lrfFee.mul(gonAmount).div(FEE_DENOMINATOR);
         uint256 safeExitAmount  = fees.safeExitFee.mul(gonAmount).div(FEE_DENOMINATOR);
         uint256 liquidityAmount = fees.liquidityFee.mul(gonAmount).div(FEE_DENOMINATOR);
+        uint256 treasuryAmount  = fees.treasuryFee.mul(gonAmount).div(FEE_DENOMINATOR);     
+
+        uint256 totalToSwap = lrfAmount
+            .add(safeExitAmount)
+            .add(treasuryAmount);
         
-        uint256 totalFeeAmount  = burnAmount
-            .add(treasuryAmount)
-            .add(lrfAmount)
-            .add(liquidityAmount)
-            .add(safeExitAmount);
-         
+        uint256 total = totalToSwap
+            .add(burnAmount)
+            .add(liquidityAmount);
+
         // burn
         if (burnAmount > 0) {
             _gonBalances[_burnAddress] = _gonBalances[_burnAddress].add(burnAmount);
-            emit Transfer(sender, _burnAddress, burnAmount);
+            emit Transfer(sender, _burnAddress, burnAmount.div(_gonsPerFragment));
         }
 
-        // add treasury fees to smart contract
-        _gonBalances[address(this)] = _gonBalances[address(this)].add(treasuryAmount);
-        _treasuryFeesCollected = _treasuryFeesCollected.add(treasuryAmount.div(_gonsPerFragment));
-        
-        // add lrf fees to smart contract
-        _gonBalances[address(this)] = _gonBalances[address(this)].add(lrfAmount);
-        _lrfFeesCollected = _lrfFeesCollected.add(lrfAmount.div(_gonsPerFragment));
-
-        // add safe exit fees to smart contract
-        _gonBalances[address(this)] = _gonBalances[address(this)].add(safeExitAmount);
-        _safeExitFeesCollected = _safeExitFeesCollected.add(safeExitAmount.div(_gonsPerFragment));
-
-        // add liquidity fees to liquidity address
+        // add liquidity fees to auto liquidity engine
         _gonBalances[address(autoLiquidityEngine)] = _gonBalances[address(autoLiquidityEngine)].add(liquidityAmount);
+        emit Transfer(sender, address(autoLiquidityEngine), liquidityAmount.div(_gonsPerFragment));
 
-        emit Transfer(sender, address(this), totalFeeAmount.div(_gonsPerFragment));
-        return gonAmount.sub(totalFeeAmount);
+        // move the rest to swap engine
+        _gonBalances[address(swapEngine)] = _gonBalances[address(swapEngine)].add(totalToSwap);
+        emit Transfer(sender, address(swapEngine), totalToSwap.div(_gonsPerFragment));
+        
+        // record fees in swap engine
+        swapEngine.recordFees(
+            lrfAmount.div(_gonsPerFragment),
+            safeExitAmount.div(_gonsPerFragment),
+            treasuryAmount.div(_gonsPerFragment)
+        );
+
+        return gonAmount.sub(total);
     }
     
-    function executeLrf() internal swapping {
+    function executeLrf() internal {
         lrf.execute();
         lastLrfExecutionTime = block.timestamp;
     }
 
-    function executeAutoLiquidityEngine() internal swapping {
+    function executeAutoLiquidityEngine() internal {
         autoLiquidityEngine.execute();
         lastAddLiquidityTime = block.timestamp;
     }
 
-    function swapBack() internal swapping {
+    function executeSafeExit(address sender, address recipient, uint256 amount) internal {
+        safeExitFund.execute(sender, recipient, amount);
+    }
 
-        uint256 totalGonFeesCollected = _treasuryFeesCollected.add(_lrfFeesCollected).add(_safeExitFeesCollected);
-        uint256 amountToSwap = _gonBalances[address(this)].div(_gonsPerFragment);
-
-        if (amountToSwap == 0) {
-            return;
-        }
-
-        uint256 balanceBefore = address(this).balance;
-
-        address[] memory path = new address[](2);
-        path[0] = address(this);
-        path[1] = _router.WETH();
-
-        // swap all tokens in contract for ETH
-        _router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            amountToSwap,
-            0,
-            path,
-            address(this),
-            block.timestamp
-        );
-
-        uint256 amountETH = address(this).balance.sub(balanceBefore);
-        uint256 treasuryETH = amountETH.mul(_treasuryFeesCollected).div(totalGonFeesCollected);
-        uint256 safeExitETH = amountETH.mul(_safeExitFeesCollected).div(totalGonFeesCollected);
-        uint256 lrfETH = amountETH.sub(treasuryETH).sub(safeExitETH);
-
-        _treasuryFeesCollected = 0;
-        _lrfFeesCollected = 0;
-        _safeExitFeesCollected = 0;
-        
-        // send eth to treasury
-        (bool success, ) = payable(_treasuryAddress).call{ value: treasuryETH }("");
-
-        // send eth to lrf
-        (success, ) = payable(address(lrf)).call{ value: lrfETH }("");
-
-        // send eth to safe exit fund
-        (success, ) = payable(address(safeExitFund)).call{ value: safeExitETH }("");
+    function swapBack() internal {
+        swapEngine.execute();
+        lastSwapTime = block.timestamp;
     }
 
     /*
@@ -447,7 +419,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
             hasLaunched &&
             (_totalSupply < MAX_SUPPLY) &&
             msg.sender != address(_pair)    &&
-            !_inSwap &&
+            // !_inSwap &&
             block.timestamp >= (lastRebaseTime + REBASE_FREQUENCY);
     }
 
@@ -455,14 +427,14 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         return
             hasLaunched &&
             autoAddLiquidityEnabled && 
-            !_inSwap && 
+            // !_inSwap && 
             msg.sender != address(_pair) &&
             (autoLiquidityFrequency == 0 || (block.timestamp >= (lastAddLiquidityTime + autoLiquidityFrequency))); 
     }
 
     function shouldSwapBack() internal view returns (bool) {
         return 
-            !_inSwap &&
+            // !_inSwap &&
             swapEnabled &&
             msg.sender != address(_pair) &&
             (swapFrequency == 0 || (block.timestamp >= (lastSwapTime + swapFrequency)));
@@ -473,6 +445,11 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
             lrfEnabled &&
             hasLaunched &&
             (lrfFrequency == 0 || (block.timestamp >= (lastLrfExecutionTime + lrfFrequency))); 
+    }
+
+    function shouldExecuteSafeExit() internal pure returns (bool) {
+        return true;
+            // safeExitFund.balanceOf(msg.sender) > 0;
     }
 
     /*

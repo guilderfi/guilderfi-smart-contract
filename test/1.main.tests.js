@@ -20,7 +20,6 @@ const DEAD = ethers.utils.getAddress("0x000000000000000000000000000000000000dEaD
 let token;
 let router;
 let pair;
-
 let treasury;
 let lrf;
 let safeExit;
@@ -164,7 +163,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
     // check that fees have been taken
     expect(await token.balanceOf(account3.address)).to.equal(ether(850));
-    expect(await token.balanceOf(token.address)).to.equal(ether(70));
+    expect(await token.balanceOf(await token.swapEngine())).to.equal(ether(70));
     expect(await token.balanceOf(await token.autoLiquidityEngine())).to.equal(ether(30));
     expect(await token.balanceOf(DEAD)).to.equal(ether(50));
   });
@@ -208,7 +207,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
     // check that fees have been taken
     expect(await token.balanceOf(account1.address)).to.equal(0);
-    expect(await token.balanceOf(token.address)).to.equal(ether(70 + 90));
+    expect(await token.balanceOf(await token.swapEngine())).to.equal(ether(70 + 90));
     expect(await token.balanceOf(await token.autoLiquidityEngine())).to.equal(ether(30 + 45));
     expect(await token.balanceOf(DEAD)).to.equal(ether(50 + 9));
   });
@@ -223,7 +222,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     const safeExitEthBalanceBefore = await ethers.provider.getBalance(safeExit.address);
 
     // calculate how much eth received when swaping 160 tokens
-    expect(await token.balanceOf(token.address)).to.equal(ether(160));
+    expect(await token.balanceOf(await token.swapEngine())).to.equal(ether(160));
     const ethToReceive = await calculateEthToReceive({ token, pair, tokenAmount: ether(160) });
 
     // sell tokens
@@ -237,7 +236,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
     // check that balances have been updated
     expect(await token.balanceOf(account2.address)).to.equal(0);
-    expect(await token.balanceOf(token.address)).to.equal(ether(10));
+    expect(await token.balanceOf(await token.swapEngine())).to.equal(ether(10));
 
     const treasuryEthDifference = treasuryEthBalanceAfter.sub(treasuryEthBalanceBefore);
     const lrfEthDifference = lrfEthBalanceAfter.sub(lrfEthBalanceBefore);

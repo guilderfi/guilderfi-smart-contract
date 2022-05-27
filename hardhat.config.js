@@ -33,6 +33,9 @@ task("deploy", "Deploys the contract to the blockchain", async (taskArgs, hre) =
   const token = await Token.deploy();
 
   console.log("Token deployed to contract address: ", token.address);
+
+  // const deployer = (await hre.ethers.getSigners())[0];
+  // console.log(await hre.ethers.provider.getBalance(deployer.address));
 });
 
 task("deploy-and-verify", "Deploys the contract to the blockchain", async (taskArgs, hre) => {
@@ -113,11 +116,17 @@ task("verify-all", "Verify all contracts on etherscan")
  */
 module.exports = {
   solidity: "0.8.10",
+  settings: {
+    optimizer: {
+      enabled: true,
+      runs: 1000,
+    },
+  },
   networks: {
     hardhat: {
       hostname: "127.0.0.1",
       port: "8545",
-      chainId: 23,
+      chainId: 43113,
       accounts,
       forking: {
         url: process.env.FORK_URL,
@@ -125,11 +134,13 @@ module.exports = {
     },
     localhost: {
       url: "http://127.0.0.1:8545",
-      gasPrice: 5000000000,
+      // gasPrice: 5000000000,
     },
     testnet: {
-      url: "https://data-seed-prebsc-1-s1.binance.org:8545",
-      chainId: 97,
+      // url: "https://data-seed-prebsc-1-s1.binance.org:8545",
+      // chainId: 97,
+      url: "https://api.avax-test.network/ext/bc/C/rpc",
+      // chainId: 43113,
       accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
     },
     mainnet: {
