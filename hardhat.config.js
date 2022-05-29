@@ -134,7 +134,7 @@ task("setup", "Set up")
     if ((await token.getAutoLiquidityAddress()) === ZERO_ADDRESS) {
       console.log("Deploying Auto Liquidity Engine...");
       const autoLiquidityEngine = await AutoLiquidityEngine.connect(deployer).deploy(token.address);
-      await token.connect(deployer).setAutoLiquidityEngine(autoLiquidityEngine.address);
+      await token.connect(deployer).setLiquidityEngine(autoLiquidityEngine.address);
     }
     console.log(`Auto Liquidity Engine deployed at: ${await token.getAutoLiquidityAddress()}`);
 
@@ -189,7 +189,7 @@ task("turn-on", "Turn everything on")
     tx = await token.connect(treasury).setAutoSwap(true);
     await tx.wait();
 
-    tx = await token.connect(treasury).setAutoAddLiquidity(true);
+    tx = await token.connect(treasury).setAutoLiquidity(true);
     await tx.wait();
 
     tx = await token.connect(treasury).setAutoRebase(true);

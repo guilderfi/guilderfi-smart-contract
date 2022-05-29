@@ -54,7 +54,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
     // create auto liquidity engine
     const _autoLiquidityEngine = await AutoLiquidityEngine.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setAutoLiquidityEngine(_autoLiquidityEngine.address);
+    await token.connect(deployer).setLiquidityEngine(_autoLiquidityEngine.address);
 
     // create LRF
     const _lrf = await LiquidityReliefFund.connect(deployer).deploy(token.address);
@@ -304,44 +304,5 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(ethReservesDifference).to.equal(0);
     expect(tokenReservesDifference).to.be.closeTo(ether(80), ether(1));
     // expect(await token.balanceOf(await token.getAutoLiquidityAddress())).to.be.closeTo(0, ether(1));
-  });
-
-  it("Should allow transactions when all features are enabled", async function () {
-    await token.connect(treasury).setAutoSwap(true);
-    await token.connect(treasury).setAutoAddLiquidity(true);
-    await token.connect(treasury).setAutoRebase(true);
-    await token.connect(treasury).setAutoLiquidityFrequency(0);
-    await token.connect(treasury).setLrfFrequency(0);
-    await token.connect(treasury).setSwapFrequency(0);
-
-    // await ethers.provider.send("evm_increaseTime", [86400]);
-    // await ethers.provider.send("evm_mine");
-
-    await token.connect(treasury).approve(await token.getRouter(), MAX_INT);
-    const tx = await buyTokensFromDex({ router, pair, token, account: treasury, tokenAmount: ether(1000) });
-    await tx.wait();
-
-    const tx2 = await sellTokens({
-      router,
-      token,
-      account: treasury,
-      tokenAmount: ether(1000),
-    });
-    await tx2.wait();
-
-    /*
-    const { tokenReserves, ethReserves } = await getLiquidityReserves({ token, pair });
-
-    await router
-      .connect(treasury)
-      .removeLiquidityETHSupportingFeeOnTransferTokens(
-        token.address,
-        await pair.balanceOf(treasury.address),
-        tokenReserves.div(2),
-        ethReserves.div(2),
-        treasury.address,
-        (await ethers.provider.getBlock("latest")).timestamp + 86400
-      );
-    */
   });
 });

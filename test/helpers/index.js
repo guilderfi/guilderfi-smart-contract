@@ -146,13 +146,19 @@ const calculateLPtokens = ({ tokenAmount, ethAmount }) => {
   return sqrt(tokenAmount.mul(ethAmount)).sub(MINIMUM_LIQUIDITY);
 };
 
-const printStatus = async ({ token, treasury, lrf, safeExit, pair }) => {
+const printStatus = async ({ token, treasury, ethers }) => {
+  const lrf = await ethers.getContractAt("LiquidityReliefFund", await token.getLrfAddress());
+  const safeExit = await ethers.getContractAt("SafeExitFund", await token.getSafeExitFundAddress());
+  const pair = await ethers.getContractAt("IDexPair", await token.getPair());
+  const swapEngine = await ethers.getContractAt("SwapEngine", await token.getSwapEngineAddress());
+
   const treasuryBalance = await ethers.provider.getBalance(treasury.address);
   const lrfBalance = await ethers.provider.getBalance(lrf.address);
   const lrfTokenBalance = await token.balanceOf(lrf.address);
-  const feesCollected = await token.balanceOf(token.address);
+  const totalAssets = 0; // treasuryBalance.add(lrfBalance);
+  const feesCollected = await token.balanceOf(swapEngine.address);
   const { ethReserves, tokenReserves } = await getLiquidityReserves({ token, pair });
-  const liquidityTokens = await token.balanceOf(await token.autoLiquidityEngine());
+  const liquidityTokens = await token.balanceOf(await token.getAutoLiquidityAddress());
   const safeExitFundBalance = await ethers.provider.getBalance(safeExit.address);
   const backedLiquidity = BigNumber.from("1000000000000000000")
     .mul(treasuryBalance.add(lrfBalance))
@@ -162,7 +168,7 @@ const printStatus = async ({ token, treasury, lrf, safeExit, pair }) => {
   console.log(`Treasury - eth:   ${ethers.utils.formatEther(treasuryBalance, { comify: true })}`);
   console.log(`LRF - eth:        ${ethers.utils.formatEther(lrfBalance, { comify: true })}`);
   console.log(`LRF - tokens:     ${ethers.utils.formatEther(lrfTokenBalance, { comify: true })}`);
-  console.log(`Total assets:     ${ethers.utils.formatEther(lrfBalance.add(treasuryBalance), { comify: true })}`);
+  console.log(`Total assets:     ${ethers.utils.formatEther(totalAssets, { comify: true })}`);
   console.log();
   console.log(`LP - eth:         ${ethers.utils.formatEther(ethReserves, { comify: true })}`);
   console.log(`LP - tokens:      ${ethers.utils.formatEther(tokenReserves, { comify: true })}`);
@@ -171,7 +177,9 @@ const printStatus = async ({ token, treasury, lrf, safeExit, pair }) => {
   console.log(`Token fees coll:  ${ethers.utils.formatEther(feesCollected, { comify: true })}`);
   console.log(`Liquidity tokens: ${ethers.utils.formatEther(liquidityTokens, { comify: true })}`);
   console.log(
-    `Liquidity eng ETH: ${ethers.utils.formatEther(await ethers.provider.getBalance(await token.autoLiquidityEngine()), { comify: true })}`
+    `Liquidity eng ETH: ${ethers.utils.formatEther(await ethers.provider.getBalance(await token.getAutoLiquidityAddress()), {
+      comify: true,
+    })}`
   );
   console.log();
   console.log(`Safe exit fund:   ${ethers.utils.formatEther(safeExitFundBalance, { comify: true })}`);

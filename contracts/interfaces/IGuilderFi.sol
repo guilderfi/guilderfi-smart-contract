@@ -33,21 +33,25 @@ interface IGuilderFi {
 
     // Allowance
     function allowance(address owner_, address spender) external view returns (uint256);
-    function decreaseAllowance(address spender, uint256 subtractedValue) external returns (bool);
-    function increaseAllowance(address spender, uint256 addedValue) external returns (bool);
     function approve(address spender, uint256 value) external returns (bool);
 
-    // Smart Contract Settings
-    // function openTrade() external;
+    // Launch token
     function launchToken() external;
+    
+    // Set on/off flags
     function setAutoSwap(bool _flag) external;
-    function setAutoAddLiquidity(bool _flag) external;
+    function setAutoLiquidity(bool _flag) external;
+    function setAutoLrf(bool _flag) external;
+    function setAutoSafeExit(bool _flag) external;
     function setAutoRebase(bool _flag) external;
+
+    // Set frequencies
     function setAutoLiquidityFrequency(uint256 _frequency) external;
     function setLrfFrequency(uint256 _frequency) external;
-    function setSwapFrequency(uint256 _frequency) external;    
+    function setSwapFrequency(uint256 _frequency) external;
+    
+    // Other settings
     function setMaxRebaseBatchSize(uint256 _maxRebaseBatchSize) external;
-
 
     // Address settings
     function setFeeExempt(address _address, bool _flag) external;
@@ -59,7 +63,6 @@ interface IGuilderFi {
     function hasLaunched() external view returns (bool);
     function getCirculatingSupply() external view returns (uint256);
     function checkFeeExempt(address _addr) external view returns (bool);
-    function isNotInSwap() external view returns (bool);
 
     // Addresses
     function getOwner() external view returns (address);
@@ -71,14 +74,16 @@ interface IGuilderFi {
     function getPreSaleAddress() external view returns (address);
     function getBurnAddress() external view returns (address);
 
-    function setSwapEngine (address _address) external;
-    function setLrf (address _address) external;
-    function setAutoLiquidityEngine (address _address) external;
-    function setSafeExitFund (address _address) external;
-    function setPreSaleEngine (address _address) external;
+    // Setup functions
+    function setSwapEngine(address _address) external;
+    function setLrf(address _address) external;
+    function setLiquidityEngine(address _address) external;
+    function setSafeExitFund(address _address) external;
+    function setPreSaleEngine(address _address) external;
     function setTreasury(address _address) external;
     function setDex(address routerAddress) external;
 
+    // Setup fees
     function setFees(
         bool _isSellFee,
         uint256 _treasuryFee,
@@ -88,11 +93,17 @@ interface IGuilderFi {
         uint256 _burnFee
     ) external;
 
-    // Setting flags
-    function swapEnabled() external view returns (bool);
-    function autoRebaseEnabled() external view returns (bool);
-    function autoAddLiquidityEnabled() external view returns (bool);
-    function lrfEnabled() external view returns (bool);
+    // Getters - setting flags
+    function isAutoSwapEnabled() external view returns (bool);
+    function isAutoRebaseEnabled() external view returns (bool);
+    function isAutoLiquidityEnabled() external view returns (bool);
+    function isAutoLrfEnabled() external view returns (bool);
+    function isAutoSafeExitEnabled() external view returns (bool);
+
+    // Getters - frequencies
+    function autoSwapFrequency() external view returns (uint256);
+    function autoLiquidityFrequency() external view returns (uint256);
+    function autoLrfFrequency() external view returns (uint256);
 
     // Date/time stamps
     function initRebaseStartTime() external view returns (uint256);

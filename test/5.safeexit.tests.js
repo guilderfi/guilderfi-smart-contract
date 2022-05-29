@@ -54,7 +54,7 @@ describe(`Testing safe exit..`, function () {
 
     // create auto liquidity engine
     const _autoLiquidityEngine = await AutoLiquidityEngine.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setAutoLiquidityEngine(_autoLiquidityEngine.address);
+    await token.connect(deployer).setLiquidityEngine(_autoLiquidityEngine.address);
 
     // create LRF
     const _lrf = await LiquidityReliefFund.connect(deployer).deploy(token.address);

@@ -34,19 +34,18 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     address private constant ZERO = 0x0000000000000000000000000000000000000000;
 
     // SUPPLY CONSTANTS
-    // uint256 private constant INITIAL_FRAGMENTS_SUPPLY = 100000 * 10**DECIMALS; // 100,000 for testing
     uint256 private constant INITIAL_FRAGMENTS_SUPPLY = 100 * 10**6 * 10**DECIMALS; // 100 million
     uint256 private constant MAX_SUPPLY = 82 * 10**21 * 10**DECIMALS;
     uint256 private constant TOTAL_GONS = MAX_UINT256 - (MAX_UINT256 % INITIAL_FRAGMENTS_SUPPLY);
 
-    // REBASE SETTINGS
+    // REBASE CONSTANTS
     uint256 private constant YEAR1_REBASE_RATE = 160309122470000; // 0.0160309122470000 %
     uint256 private constant YEAR2_REBASE_RATE = 144501813571063; // 0.0144501813571063 %
     uint256 private constant YEAR3_REBASE_RATE = 128715080592867; // 0.0128715080592867 %
     uint256 private constant YEAR4_REBASE_RATE = 112969085762193; // 0.0112969085762193 %
     uint256 private constant YEAR5_REBASE_RATE = 97303671485527;    // 0.0097303671485527 %
     uint256 private constant YEAR6_REBASE_RATE = 34322491203609;    // 0.0034322491203609 %
-    uint8     private constant REBASE_RATE_DECIMALS = 18;
+    uint8   private constant REBASE_RATE_DECIMALS = 18;
     uint256 private constant REBASE_FREQUENCY = 12 minutes;
     
     // REBASE VARIABLES
@@ -75,15 +74,16 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     Fee private _sellFees = Fee(40, 70, 60, 10, 0, 180);
 
     // SETTING FLAGS
-    bool public override swapEnabled = true;
-    bool public override autoRebaseEnabled = true;
-    bool public override autoAddLiquidityEnabled = true;
-    bool public override lrfEnabled = true;
+    bool public override isAutoSwapEnabled = true;
+    bool public override isAutoRebaseEnabled = true;
+    bool public override isAutoLiquidityEnabled = true;
+    bool public override isAutoLrfEnabled = true;
+    bool public override isAutoSafeExitEnabled = true;
 
     // FREQUENCIES
-    uint256 public autoLiquidityFrequency = 2 days;
-    uint256 public lrfFrequency = 2 days;
-    uint256 public swapFrequency = 1 days;
+    uint256 public override autoSwapFrequency = 0;    
+    uint256 public override autoLiquidityFrequency = 0;
+    uint256 public override autoLrfFrequency = 0;
 
     // PRIVATE FLAGS
     bool private _inSwap = false;
@@ -112,16 +112,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     // TOKEN LAUNCHED FLAG
     bool public override hasLaunched = false;
-
-    // PRE-SALE FLAGS
-    // bool public override isPreSale = true;
-    // mapping(address => bool) private _allowPreSaleTransfer;
-
-    // MODIFIERS
-    // modifier checkAllowTransfer() {
-    //    require(!isPreSale || msg.sender == owner() || _allowPreSaleTransfer[msg.sender], "Trading not open yet");
-    //     _;
-    // }    
 
     modifier swapping() {
         _inSwap = true;
@@ -161,7 +151,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         initSubContract(_address);
     }
 
-    function setAutoLiquidityEngine(address _address) external override onlyOwner {
+    function setLiquidityEngine(address _address) external override onlyOwner {
         autoLiquidityEngine = IAutoLiquidityEngine(_address);
         initSubContract(_address);
     }        
@@ -182,7 +172,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         }
 
         _isFeeExempt[_address] = true;
-        // _allowPreSaleTransfer[_address] = true;
     }
 
     function setTreasury(address _address) external override onlyOwner {
@@ -329,7 +318,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
             safeExitFund.execute(sender, recipient, amount);
         }
 
-        if (shouldSwapBack()) {
+        if (shouldSwap()) {
             swapEngine.execute();
             lastSwapTime = block.timestamp;
         }
@@ -404,36 +393,31 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     function shouldRebase() internal view returns (bool) {
         return
-            autoRebaseEnabled &&
+            isAutoRebaseEnabled &&
             hasLaunched &&
             (_totalSupply < MAX_SUPPLY) &&
-            msg.sender != address(_pair)    &&
-            // !_inSwap &&
+            // msg.sender != address(_pair) &&
             block.timestamp >= (lastRebaseTime + REBASE_FREQUENCY);
     }
 
     function shouldAddLiquidity() internal view returns (bool) {
         return
-            hasLaunched &&
-            autoAddLiquidityEnabled && 
-            // !_inSwap && 
-            msg.sender != address(_pair) &&
+            isAutoLiquidityEnabled && 
+            // msg.sender != address(_pair) &&
             (autoLiquidityFrequency == 0 || (block.timestamp >= (lastAddLiquidityTime + autoLiquidityFrequency))); 
     }
 
-    function shouldSwapBack() internal view returns (bool) {
+    function shouldSwap() internal view returns (bool) {
         return 
-            // !_inSwap &&
-            swapEnabled &&
-            msg.sender != address(_pair) &&
-            (swapFrequency == 0 || (block.timestamp >= (lastSwapTime + swapFrequency)));
+            isAutoSwapEnabled &&
+            // msg.sender != address(_pair) &&
+            (autoSwapFrequency == 0 || (block.timestamp >= (lastSwapTime + autoSwapFrequency)));
     }
 
     function shouldExecuteLrf() internal view returns (bool) {
         return
-            lrfEnabled &&
-            hasLaunched &&
-            (lrfFrequency == 0 || (block.timestamp >= (lastLrfExecutionTime + lrfFrequency))); 
+            isAutoLrfEnabled &&
+            (autoLrfFrequency == 0 || (block.timestamp >= (lastLrfExecutionTime + autoLrfFrequency))); 
     }
 
     function shouldExecuteSafeExit() internal pure returns (bool) {
@@ -446,36 +430,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
      */ 
     function allowance(address owner_, address spender) public view override(IGuilderFi, IERC20) returns (uint256) {
         return _allowedFragments[owner_][spender];
-    }
-
-    function decreaseAllowance(address spender, uint256 subtractedValue) external override returns (bool) {
-        uint256 oldValue = _allowedFragments[msg.sender][spender];
-        
-        if (subtractedValue >= oldValue) {
-            _allowedFragments[msg.sender][spender] = 0;
-        } else {
-            _allowedFragments[msg.sender][spender] = oldValue.sub(subtractedValue);
-        }
-
-        emit Approval(
-            msg.sender,
-            spender,
-            _allowedFragments[msg.sender][spender]
-        );
-
-        return true;
-    }
-
-    function increaseAllowance(address spender, uint256 addedValue) external override returns (bool) {
-        _allowedFragments[msg.sender][spender] = _allowedFragments[msg.sender][spender].add(addedValue);
-        
-        emit Approval(
-            msg.sender,
-            spender,
-            _allowedFragments[msg.sender][spender]
-        );
-
-        return true;
     }
 
     function approve(address spender, uint256 value) external override(IGuilderFi, IERC20) returns (bool) {
@@ -492,21 +446,29 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
      * PUBLIC SETTER FUNCTIONS
      */ 
     function setAutoSwap(bool _flag) external override onlyOwner {
-        swapEnabled = _flag;
+        isAutoSwapEnabled = _flag;
     }
 
-    function setAutoAddLiquidity(bool _flag) external override onlyOwner {
-        autoAddLiquidityEnabled = _flag;
+    function setAutoLrf(bool _flag) external override onlyOwner {
+        isAutoLrfEnabled = _flag;
+    }
+
+    function setAutoLiquidity(bool _flag) external override onlyOwner {
+        isAutoLiquidityEnabled = _flag;
         if(_flag) {
             lastAddLiquidityTime = block.timestamp;
         }
     }
 
     function setAutoRebase(bool _flag) override external onlyOwner {
-        autoRebaseEnabled = _flag;
+        isAutoRebaseEnabled = _flag;
         if (_flag) {
             lastRebaseTime = block.timestamp;
         }
+    }
+
+    function setAutoSafeExit(bool _flag) external override onlyOwner {
+        isAutoSafeExitEnabled = _flag;
     }
 
     function setFeeExempt(address _address, bool _flag) external override onlyOwner {
@@ -516,10 +478,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     function setBlacklist(address _address, bool _flag) external override onlyOwner {
         blacklist[_address] = _flag;    
     }
-
-    // function allowPreSaleTransfer(address _addr, bool _flag) external override onlyOwner {
-    //     _allowPreSaleTransfer[_addr] = _flag;
-    // }
 
     function setMaxRebaseBatchSize(uint256 _maxRebaseBatchSize) external override onlyOwner {
         maxRebaseBatchSize = _maxRebaseBatchSize;
@@ -550,11 +508,11 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     }
     
     function setLrfFrequency(uint256 _frequency) external override onlyOwner {
-        lrfFrequency = _frequency;
+        autoLrfFrequency = _frequency;
     }
     
     function setSwapFrequency(uint256 _frequency) external override onlyOwner {
-        swapFrequency = _frequency;
+        autoSwapFrequency = _frequency;
     }
 
     function setFees(
@@ -585,14 +543,9 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         }
     }
 
-    // function openTrade() external override onlyOwner {
-    //    isPreSale = false;
-    // }
-
     function launchToken() external override onlyOwner {
         require(!hasLaunched, "Token has already launched");
 
-        // isPreSale = false;
         hasLaunched = true;
 
         // record rebase timestamps
@@ -612,9 +565,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     }
     function checkFeeExempt(address _addr) public view override returns (bool) {
         return _isFeeExempt[_addr];
-    }
-    function isNotInSwap() public view override returns (bool) {
-        return !_inSwap;
     }
     function getOwner() public view override returns (address) {
         return owner();
