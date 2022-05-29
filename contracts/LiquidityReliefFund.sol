@@ -45,12 +45,16 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
         require(msg.sender == address(_token.getOwner()), "Sender is not token owner"); _;
     }
 
+    modifier onlyTokenOrTokenOwner() {
+        require(msg.sender == address(_token.getOwner()) || msg.sender == address(_token), "Sender is not contract or owner"); _;
+    }
+
     constructor (address tokenAddress) {
         _token = IGuilderFi(tokenAddress);
     }
 
     // External execute function
-    function execute() override external onlyToken {
+    function execute() override external onlyTokenOrTokenOwner {
         
         // TODO: refactor so backed liquidity ratio is not calculated over and over
         if (!_hasReachedActivationTarget) {

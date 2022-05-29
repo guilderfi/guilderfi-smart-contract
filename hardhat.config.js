@@ -45,9 +45,6 @@ task("deploy", "Deploys the contract to the blockchain", async (taskArgs, hre) =
   const token = await Token.deploy();
 
   console.log("Token deployed to contract address: ", token.address);
-
-  // const deployer = (await hre.ethers.getSigners())[0];
-  // console.log(await hre.ethers.provider.getBalance(deployer.address));
 });
 
 task("deploy-and-verify", "Deploys the contract to the blockchain", async (taskArgs, hre) => {
@@ -184,27 +181,7 @@ task("turn-on", "Turn everything on")
     // get deployed token
     const token = await Token.attach(taskArgs.address);
 
-    let tx;
-
-    tx = await token.connect(treasury).setAutoSwap(true);
-    await tx.wait();
-
-    tx = await token.connect(treasury).setAutoLiquidity(true);
-    await tx.wait();
-
-    tx = await token.connect(treasury).setAutoRebase(true);
-    await tx.wait();
-
-    tx = await token.connect(treasury).setAutoLiquidityFrequency(0);
-    await tx.wait();
-
-    tx = await token.connect(treasury).setLrfFrequency(0);
-    await tx.wait();
-
-    tx = await token.connect(treasury).setSwapFrequency(0);
-    await tx.wait();
-
-    tx = await token.connect(treasury).launchToken();
+    const tx = await token.connect(treasury).launchToken();
     await tx.wait();
   });
 
@@ -219,7 +196,7 @@ task("verify-all", "Verify all contracts on etherscan")
     const safeExitFundAddress = await token.getSafeExitFundAddress();
     const preSaleAddress = await token.getPreSaleAddress();
 
-    // await hre.run("verify:verify", { address: token.address, network: hre.network.name });
+    await hre.run("verify:verify", { address: token.address, network: hre.network.name });
     await hre.run("verify:verify", { address: lrfAddress, network: hre.network.name, constructorArguments: [token.address] });
     await hre.run("verify:verify", { address: autoLiquidityAddress, network: hre.network.name, constructorArguments: [token.address] });
     await hre.run("verify:verify", { address: safeExitFundAddress, network: hre.network.name, constructorArguments: [token.address] });

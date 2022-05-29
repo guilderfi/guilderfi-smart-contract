@@ -30,7 +30,6 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     token = await Token.deploy();
     global.token = token;
     await token.deployed();
-    print(`Contract address: ${token.address}`);
 
     let tx;
 
@@ -96,26 +95,29 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     const tokenAmount = ether(1000);
     const ethAmount = ether(1);
 
-    await addLiquidity({
+    let tx;
+
+    tx = await addLiquidity({
       router,
       from: treasury,
       token,
       tokenAmount,
       ethAmount,
     });
+    await tx.wait();
 
     // expect(await token.balanceOf(wallet.address)).to.equal(0);
-    const tx = await buyTokensFromDexByExactEth({ router, pair, token, account: wallet, ethAmount: ether(0.1) });
+    tx = await buyTokensFromDexByExactEth({ router, pair, token, account: wallet, ethAmount: ether(0.1) });
     await tx.wait();
 
     await token.connect(wallet).approve(await token.getRouter(), await token.balanceOf(wallet.address));
-    const tx2 = await sellTokens({
+    tx = await sellTokens({
       router,
       token,
       account: wallet,
       tokenAmount: await token.balanceOf(wallet.address),
     });
-    await tx2.wait();
+    await tx.wait();
 
     // await printStatus({ token, treasury, ethers });
 
