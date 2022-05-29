@@ -22,6 +22,7 @@ const {
   REPORT_GAS,
 } = process.env;
 const TOKEN_NAME = "GuilderFi";
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 // fetch accounts from csv file
 const accounts = [];
@@ -122,42 +123,89 @@ task("setup", "Set up")
     const token = await Token.attach(taskArgs.address);
 
     // create swap engine
-    console.log("Deploying Swap Engine...");
-    const swapEngine = await SwapEngine.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setSwapEngine(swapEngine.address);
+    if ((await token.getSwapEngineAddress()) === ZERO_ADDRESS) {
+      console.log("Deploying Swap Engine...");
+      const swapEngine = await SwapEngine.connect(deployer).deploy(token.address);
+      await token.connect(deployer).setSwapEngine(swapEngine.address);
+    }
     console.log(`Swap Engine deployed at: ${await token.getSwapEngineAddress()}`);
 
     // create auto liquidity engine
-    console.log("Deploying Auto Liquidity Engine...");
-    const autoLiquidityEngine = await AutoLiquidityEngine.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setAutoLiquidityEngine(autoLiquidityEngine.address);
+    if ((await token.getAutoLiquidityAddress()) === ZERO_ADDRESS) {
+      console.log("Deploying Auto Liquidity Engine...");
+      const autoLiquidityEngine = await AutoLiquidityEngine.connect(deployer).deploy(token.address);
+      await token.connect(deployer).setAutoLiquidityEngine(autoLiquidityEngine.address);
+    }
     console.log(`Auto Liquidity Engine deployed at: ${await token.getAutoLiquidityAddress()}`);
 
-    // create swap engine
-    console.log("Deploying Liquidity Relief Fund...");
-    const lrf = await LiquidityReliefFund.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setLrf(lrf.address);
+    // create LRF
+    if ((await token.getLrfAddress()) === ZERO_ADDRESS) {
+      console.log("Deploying Liquidity Relief Fund...");
+      const lrf = await LiquidityReliefFund.connect(deployer).deploy(token.address);
+      await token.connect(deployer).setLrf(lrf.address);
+    }
     console.log(`LRF deployed at: ${await token.getLrfAddress()}`);
 
-    // create swap engine
-    console.log("Deploying Safe Exit Fund...");
-    const safeExit = await SafeExitFund.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setSafeExitFund(safeExit.address);
+    // create safe exit fund
+    if ((await token.getSafeExitFundAddress()) === ZERO_ADDRESS) {
+      console.log("Deploying Safe Exit Fund...");
+      const safeExit = await SafeExitFund.connect(deployer).deploy(token.address);
+      await token.connect(deployer).setSafeExitFund(safeExit.address);
+    }
     console.log(`Safe Exit deployed at: ${await token.getSafeExitFundAddress()}`);
 
     // create pre-sale
-    console.log("Deploying Pre-Sale...");
-    const preSale = await PreSale.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setPreSaleEngine(preSale.address);
+    if ((await token.getPreSaleAddress()) === ZERO_ADDRESS) {
+      console.log("Deploying Pre-Sale...");
+      const preSale = await PreSale.connect(deployer).deploy(token.address);
+      await token.connect(deployer).setPreSaleEngine(preSale.address);
+    }
     console.log(`Pre-sale deployed at: ${await token.getPreSaleAddress()}`);
 
     // set up dex
-    console.log("Setting up DEX...");
-    await token.connect(deployer).setDex(TESTNET_DEX_ROUTER_ADDRESS);
+    if ((await token.getRouter()) === ZERO_ADDRESS) {
+      console.log("Setting up DEX...");
+      await token.connect(deployer).setDex(TESTNET_DEX_ROUTER_ADDRESS);
+    }
     console.log(`DEX Pair: ${await token.getPair()}`);
 
     // transfer ownership to treasury
     await token.connect(deployer).setTreasury(treasury.address);
+  });
+
+task("turn-on", "Turn everything on")
+  .addParam("address", "Main GuilderFi contract address")
+  .setAction(async (taskArgs, hre) => {
+    // get treasury signer
+    const treasury = (await hre.ethers.getSigners())[1];
+
+    const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
+
+    // get deployed token
+    const token = await Token.attach(taskArgs.address);
+
+    let tx;
+
+    tx = await token.connect(treasury).setAutoSwap(true);
+    await tx.wait();
+
+    tx = await token.connect(treasury).setAutoAddLiquidity(true);
+    await tx.wait();
+
+    tx = await token.connect(treasury).setAutoRebase(true);
+    await tx.wait();
+
+    tx = await token.connect(treasury).setAutoLiquidityFrequency(0);
+    await tx.wait();
+
+    tx = await token.connect(treasury).setLrfFrequency(0);
+    await tx.wait();
+
+    tx = await token.connect(treasury).setSwapFrequency(0);
+    await tx.wait();
+
+    tx = await token.connect(treasury).launchToken();
+    await tx.wait();
   });
 
 task("verify-all", "Verify all contracts on etherscan")
@@ -171,7 +219,7 @@ task("verify-all", "Verify all contracts on etherscan")
     const safeExitFundAddress = await token.getSafeExitFundAddress();
     const preSaleAddress = await token.getPreSaleAddress();
 
-    await hre.run("verify:verify", { address: token.address, network: hre.network.name, constructorArguments: [token.address] });
+    // await hre.run("verify:verify", { address: token.address, network: hre.network.name });
     await hre.run("verify:verify", { address: lrfAddress, network: hre.network.name, constructorArguments: [token.address] });
     await hre.run("verify:verify", { address: autoLiquidityAddress, network: hre.network.name, constructorArguments: [token.address] });
     await hre.run("verify:verify", { address: safeExitFundAddress, network: hre.network.name, constructorArguments: [token.address] });

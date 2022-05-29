@@ -53,16 +53,6 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
             _enabled;
     }
 
-    function test() external view returns (uint256) {
-        uint256 autoLiquidityAmount = _token.balanceOf(address(this));
-
-        // calculate 50/50 split
-        uint256 amountToLiquify = autoLiquidityAmount.div(2);
-        uint256 amountToSwap = autoLiquidityAmount.sub(amountToLiquify);
-
-        return amountToSwap;
-    }
-
     function _execute() internal running {        
         // transfer all tokens from liquidity account to contract
         uint256 autoLiquidityAmount = _token.balanceOf(address(this));
@@ -111,11 +101,7 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
         return IDexRouter(_token.getRouter());
     }
 
-    function getPair() internal view returns (IDexPair) {
-        return IDexPair(_token.getPair());
-    }
-
-    function withdraw(uint256 amount) external override onlyTokenOwner{
+    function withdraw(uint256 amount) external override onlyTokenOwner {
         payable(msg.sender).transfer(amount);
     }
     
