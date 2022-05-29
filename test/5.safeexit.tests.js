@@ -14,6 +14,7 @@ const {
 } = require("./helpers");
 const { tier1, tier2, tier3 } = require("./helpers/data");
 
+const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
 const TOKEN_NAME = "GuilderFi";
 
 let token;
@@ -35,14 +36,47 @@ describe(`Testing safe exit..`, function () {
 
     print(`Deploying smart contracts..`);
 
-    // Deploy contract
     const Token = await ethers.getContractFactory(TOKEN_NAME);
+    const SwapEngine = await ethers.getContractFactory("SwapEngine");
+    const AutoLiquidityEngine = await ethers.getContractFactory("AutoLiquidityEngine");
+    const LiquidityReliefFund = await ethers.getContractFactory("LiquidityReliefFund");
+    const SafeExitFund = await ethers.getContractFactory("SafeExitFund");
+    const PreSale = await ethers.getContractFactory("PreSale");
+
+    // Deploy contract
     token = await Token.deploy();
+    global.token = token;
     await token.deployed();
 
+    // create swap engine
+    const _swapEngine = await SwapEngine.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setSwapEngine(_swapEngine.address);
+
+    // create auto liquidity engine
+    const _autoLiquidityEngine = await AutoLiquidityEngine.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setAutoLiquidityEngine(_autoLiquidityEngine.address);
+
+    // create LRF
+    const _lrf = await LiquidityReliefFund.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setLrf(_lrf.address);
+
+    // create safe exit fund
+    const _safeExit = await SafeExitFund.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setSafeExitFund(_safeExit.address);
+
+    // create pre-sale
+    const _preSale = await PreSale.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setPreSaleEngine(_preSale.address);
+
+    // set up dex
+    await token.connect(deployer).setDex(TESTNET_DEX_ROUTER_ADDRESS);
+
+    // set up treasury
+    await token.connect(deployer).setTreasury(treasury.address);
+
     // contracts
-    preSale = await ethers.getContractAt("PreSale", await token.preSale());
-    safeExit = await ethers.getContractAt("SafeExitFund", await token.safeExitFund());
+    preSale = await ethers.getContractAt("PreSale", await token.getPreSaleAddress());
+    safeExit = await ethers.getContractAt("SafeExitFund", await token.getSafeExitFundAddress());
     router = await ethers.getContractAt("IDexRouter", await token.getRouter());
     pair = await ethers.getContractAt("IDexPair", await token.getPair());
 
@@ -53,7 +87,7 @@ describe(`Testing safe exit..`, function () {
     await transferEth({ from: treasury, to: safeExit, amount: ether(10) });
 
     // open trading
-    await token.connect(treasury).openTrade();
+    // await token.connect(treasury).openTrade();
 
     // Approve DEX to transfer
     await token.connect(treasury).approve(router.address, MAX_INT);

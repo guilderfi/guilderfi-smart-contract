@@ -3,10 +3,12 @@ const { ethers } = require("hardhat");
 
 const { ether, print, transferTokens, calculateLPtokens, getLiquidityReserves } = require("./helpers");
 
+const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
 const TOKEN_NAME = "GuilderFi";
 
 let token;
 let pair;
+let deployer;
 let treasury;
 let account1;
 let account2;
@@ -46,17 +48,50 @@ const testPurchase = async ({ account, ethAmount, expectedTokens }) => {
 describe(`Testing pre-sale..`, function () {
   before(async function () {
     // Set up accounts
-    [, treasury, account1, account2, account3, account4, account5, account6, account7] = await ethers.getSigners();
+    [deployer, treasury, account1, account2, account3, account4, account5, account6, account7] = await ethers.getSigners();
 
     print(`Deploying smart contracts..`);
 
-    // Deploy contract
     const Token = await ethers.getContractFactory(TOKEN_NAME);
+    const SwapEngine = await ethers.getContractFactory("SwapEngine");
+    const AutoLiquidityEngine = await ethers.getContractFactory("AutoLiquidityEngine");
+    const LiquidityReliefFund = await ethers.getContractFactory("LiquidityReliefFund");
+    const SafeExitFund = await ethers.getContractFactory("SafeExitFund");
+    const PreSale = await ethers.getContractFactory("PreSale");
+
+    // Deploy contract
     token = await Token.deploy();
+    global.token = token;
     await token.deployed();
 
+    // create swap engine
+    const _swapEngine = await SwapEngine.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setSwapEngine(_swapEngine.address);
+
+    // create auto liquidity engine
+    const _autoLiquidityEngine = await AutoLiquidityEngine.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setAutoLiquidityEngine(_autoLiquidityEngine.address);
+
+    // create LRF
+    const _lrf = await LiquidityReliefFund.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setLrf(_lrf.address);
+
+    // create safe exit fund
+    const _safeExit = await SafeExitFund.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setSafeExitFund(_safeExit.address);
+
+    // create pre-sale
+    const _preSale = await PreSale.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setPreSaleEngine(_preSale.address);
+
+    // set up dex
+    await token.connect(deployer).setDex(TESTNET_DEX_ROUTER_ADDRESS);
+
+    // set up treasury
+    await token.connect(deployer).setTreasury(treasury.address);
+
     // contracts
-    preSale = await ethers.getContractAt("PreSale", await token.preSale());
+    preSale = await ethers.getContractAt("PreSale", await token.getPreSaleAddress());
     pair = await ethers.getContractAt("IDexPair", await token.getPair());
 
     // send 27m tokens to presale contract
@@ -278,7 +313,7 @@ describe(`Testing pre-sale..`, function () {
     expect(tokensSold).to.equal(tokensPurchased);
 
     // finalize sale
-    await token.connect(treasury).openTrade();
+    // await token.connect(treasury).openTrade();
     await preSale.connect(treasury).finalizeSale();
 
     // calculate how much was sent to treasury

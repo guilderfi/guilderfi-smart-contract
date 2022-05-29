@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.10;
+pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
@@ -93,8 +93,8 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     _;
   }
 
-  constructor() ERC721("Safe Exit Fund", "SEF") {
-    token = IGuilderFi(msg.sender);
+  constructor(address tokenAddress) ERC721("Safe Exit Fund", "SEF") {
+    token = IGuilderFi(tokenAddress);
 
     // Set max insurance amount of each NFT package
     packages[1] = Package(1, 25 ether, "");

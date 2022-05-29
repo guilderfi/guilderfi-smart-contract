@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.10;
+pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -42,8 +42,8 @@ contract SwapEngine is ISwapEngine {
         require(msg.sender == address(_token.getOwner()), "Sender is not token owner"); _;
     }
 
-    constructor () {
-        _token = IGuilderFi(msg.sender);
+    constructor (address tokenAddress) {
+        _token = IGuilderFi(tokenAddress);
     }
 
     // External execute function

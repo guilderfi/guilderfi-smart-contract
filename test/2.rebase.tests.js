@@ -2,26 +2,60 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { print, transferTokens, ether } = require("./helpers");
 
+const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
 const TOKEN_NAME = "GuilderFi";
 
 let token;
+let deployer;
 let treasury;
 let account1;
 
 describe(`Testing rebasing engine..`, function () {
   before(async function () {
     // Set up accounts
-    [, treasury, account1] = await ethers.getSigners();
+    [deployer, treasury, account1] = await ethers.getSigners();
 
     print(`Deploying smart contracts..`);
 
-    // Deploy contract
     const Token = await ethers.getContractFactory(TOKEN_NAME);
+    const SwapEngine = await ethers.getContractFactory("SwapEngine");
+    const AutoLiquidityEngine = await ethers.getContractFactory("AutoLiquidityEngine");
+    const LiquidityReliefFund = await ethers.getContractFactory("LiquidityReliefFund");
+    const SafeExitFund = await ethers.getContractFactory("SafeExitFund");
+    const PreSale = await ethers.getContractFactory("PreSale");
+
+    // Deploy contract
     token = await Token.deploy();
+    global.token = token;
     await token.deployed();
 
+    // create swap engine
+    const _swapEngine = await SwapEngine.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setSwapEngine(_swapEngine.address);
+
+    // create auto liquidity engine
+    const _autoLiquidityEngine = await AutoLiquidityEngine.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setAutoLiquidityEngine(_autoLiquidityEngine.address);
+
+    // create LRF
+    const _lrf = await LiquidityReliefFund.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setLrf(_lrf.address);
+
+    // create safe exit fund
+    const _safeExit = await SafeExitFund.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setSafeExitFund(_safeExit.address);
+
+    // create pre-sale
+    const _preSale = await PreSale.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setPreSaleEngine(_preSale.address);
+
+    // set up dex
+    await token.connect(deployer).setDex(TESTNET_DEX_ROUTER_ADDRESS);
+
+    // set up treasury
+    await token.connect(deployer).setTreasury(treasury.address);
+
     // start rebasing
-    await token.connect(treasury).openTrade();
     await token.connect(treasury).launchToken();
 
     // transfer 100 tokens to account1

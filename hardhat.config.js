@@ -9,7 +9,19 @@ require("@nomiclabs/hardhat-etherscan");
 require("@nomiclabs/hardhat-waffle");
 require("hardhat-gas-reporter");
 require("solidity-coverage");
+require("hardhat-contract-sizer");
 
+const {
+  TESTNET_URL,
+  TESTNET_CHAIN_ID,
+  TESTNET_DEX_ROUTER_ADDRESS,
+  MAINNET_URL,
+  MAINNET_CHAIN_ID,
+  PRIVATE_KEY,
+  ETHERSCAN_API_KEY,
+  REPORT_GAS,
+  TREASURY_ADDRESS,
+} = process.env;
 const TOKEN_NAME = "GuilderFi";
 
 // fetch accounts from csv file
@@ -93,6 +105,62 @@ task("merge", "Merge solidity contracts", async (taskArgs, hre) => {
   console.log("File created: ", outputFilePath);
 });
 
+task("setup", "Set up")
+  .addParam("address", "Main GuilderFi contract address")
+  .setAction(async (taskArgs, hre) => {
+    // get treasury signer
+    const deployer = (await hre.ethers.getSigners())[0];
+    const treasury = (await hre.ethers.getSigners())[1];
+
+    const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
+    const SwapEngine = await hre.ethers.getContractFactory("SwapEngine");
+    const AutoLiquidityEngine = await hre.ethers.getContractFactory("AutoLiquidityEngine");
+    const LiquidityReliefFund = await hre.ethers.getContractFactory("LiquidityReliefFund");
+    const SafeExitFund = await hre.ethers.getContractFactory("SafeExitFund");
+    const PreSale = await hre.ethers.getContractFactory("PreSale");
+
+    // get deployed token
+    const token = await Token.attach(taskArgs.address);
+
+    // create swap engine
+    console.log("Deploying Swap Engine...");
+    const swapEngine = await SwapEngine.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setSwapEngine(swapEngine.address);
+    console.log(`Swap Engine deployed at: ${await token.getSwapEngineAddress()}`);
+
+    // create auto liquidity engine
+    console.log("Deploying Auto Liquidity Engine...");
+    const autoLiquidityEngine = await AutoLiquidityEngine.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setAutoLiquidityEngine(autoLiquidityEngine.address);
+    console.log(`Auto Liquidity Engine deployed at: ${await token.getAutoLiquidityAddress()}`);
+
+    // create swap engine
+    console.log("Deploying Liquidity Relief Fund...");
+    const lrf = await LiquidityReliefFund.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setLrf(lrf.address);
+    console.log(`LRF deployed at: ${await token.getLrfAddress()}`);
+
+    // create swap engine
+    console.log("Deploying Safe Exit Fund...");
+    const safeExit = await SafeExitFund.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setSafeExitFund(safeExit.address);
+    console.log(`Safe Exit deployed at: ${await token.getSafeExitFundAddress()}`);
+
+    // create pre-sale
+    console.log("Deploying Pre-Sale...");
+    const preSale = await PreSale.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setPreSaleEngine(preSale.address);
+    console.log(`Pre-sale deployed at: ${await token.getPreSaleAddress()}`);
+
+    // set up dex
+    console.log("Setting up DEX...");
+    await token.connect(deployer).setDex(TESTNET_DEX_ROUTER_ADDRESS);
+    console.log(`DEX Pair: ${await token.getPair()}`);
+
+    // transfer ownership to treasury
+    await token.connect(deployer).setTreasury(treasury.address);
+  });
+
 task("verify-all", "Verify all contracts on etherscan")
   .addParam("address", "Main GuilderFi contract address")
   .setAction(async (taskArgs, hre) => {
@@ -104,60 +172,53 @@ task("verify-all", "Verify all contracts on etherscan")
     const safeExitFundAddress = await token.getSafeExitFundAddress();
     const preSaleAddress = await token.getPreSaleAddress();
 
-    await hre.run("verify:verify", { address: token.address, network: hre.network.name });
-    await hre.run("verify:verify", { address: lrfAddress, network: hre.network.name });
-    await hre.run("verify:verify", { address: autoLiquidityAddress, network: hre.network.name });
-    await hre.run("verify:verify", { address: safeExitFundAddress, network: hre.network.name });
-    await hre.run("verify:verify", { address: preSaleAddress, network: hre.network.name });
+    await hre.run("verify:verify", { address: token.address, network: hre.network.name, constructorArguments: [token.address] });
+    await hre.run("verify:verify", { address: lrfAddress, network: hre.network.name, constructorArguments: [token.address] });
+    await hre.run("verify:verify", { address: autoLiquidityAddress, network: hre.network.name, constructorArguments: [token.address] });
+    await hre.run("verify:verify", { address: safeExitFundAddress, network: hre.network.name, constructorArguments: [token.address] });
+    await hre.run("verify:verify", { address: preSaleAddress, network: hre.network.name, constructorArguments: [token.address] });
   });
 
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
 module.exports = {
-  solidity: "0.8.10",
+  solidity: "0.8.9",
   settings: {
     optimizer: {
       enabled: true,
-      runs: 1000,
+      runs: 1,
     },
   },
   networks: {
     hardhat: {
       hostname: "127.0.0.1",
-      port: "8545",
-      chainId: 43113,
+      port: 8545,
+      chainId: parseInt(TESTNET_CHAIN_ID),
       accounts,
       forking: {
-        url: process.env.FORK_URL,
+        url: TESTNET_URL,
       },
     },
     localhost: {
       url: "http://127.0.0.1:8545",
-      // gasPrice: 5000000000,
     },
     testnet: {
-      // url: "https://data-seed-prebsc-1-s1.binance.org:8545",
-      // chainId: 97,
-      url: "https://api.avax-test.network/ext/bc/C/rpc",
-      // chainId: 43113,
-      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+      url: TESTNET_URL,
+      chainId: parseInt(TESTNET_CHAIN_ID),
+      accounts: accounts.map((x) => x.privateKey), // accounts: PRIVATE_KEY !== undefined ? [PRIVATE_KEY] : [],
     },
     mainnet: {
-      url: "https://bsc-dataseed.binance.org/",
-      chainId: 56,
-      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
-    },
-    ropsten: {
-      url: process.env.ROPSTEN_URL || "",
-      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+      url: MAINNET_URL,
+      chainId: parseInt(MAINNET_CHAIN_ID),
+      accounts: PRIVATE_KEY !== undefined ? [PRIVATE_KEY] : [],
     },
   },
   gasReporter: {
-    enabled: process.env.REPORT_GAS !== undefined,
+    enabled: REPORT_GAS !== undefined,
     currency: "USD",
   },
   etherscan: {
-    apiKey: process.env.ETHERSCAN_API_KEY,
+    apiKey: ETHERSCAN_API_KEY,
   },
 };

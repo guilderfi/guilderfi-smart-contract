@@ -14,9 +14,11 @@ const {
   MAX_INT,
 } = require("./helpers");
 
+const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
 const TOKEN_NAME = "GuilderFi";
 const DEAD = ethers.utils.getAddress("0x000000000000000000000000000000000000dEaD");
 
+let deployer;
 let token;
 let router;
 let pair;
@@ -30,23 +32,55 @@ let account3;
 describe(`Testing ${TOKEN_NAME}..`, function () {
   before(async function () {
     // Set up accounts
-    [, treasury, account1, account2, account3] = await ethers.getSigners();
+    [deployer, treasury, account1, account2, account3] = await ethers.getSigners();
 
     print(`Deploying smart contracts..`);
 
-    // Deploy contract
     const Token = await ethers.getContractFactory(TOKEN_NAME);
+    const SwapEngine = await ethers.getContractFactory("SwapEngine");
+    const AutoLiquidityEngine = await ethers.getContractFactory("AutoLiquidityEngine");
+    const LiquidityReliefFund = await ethers.getContractFactory("LiquidityReliefFund");
+    const SafeExitFund = await ethers.getContractFactory("SafeExitFund");
+    const PreSale = await ethers.getContractFactory("PreSale");
+
+    // Deploy contract
     token = await Token.deploy();
     global.token = token;
     await token.deployed();
+
+    // create swap engine
+    const _swapEngine = await SwapEngine.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setSwapEngine(_swapEngine.address);
+
+    // create auto liquidity engine
+    const _autoLiquidityEngine = await AutoLiquidityEngine.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setAutoLiquidityEngine(_autoLiquidityEngine.address);
+
+    // create LRF
+    const _lrf = await LiquidityReliefFund.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setLrf(_lrf.address);
+
+    // create safe exit fund
+    const _safeExit = await SafeExitFund.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setSafeExitFund(_safeExit.address);
+
+    // create pre-sale
+    const _preSale = await PreSale.connect(deployer).deploy(token.address);
+    await token.connect(deployer).setPreSaleEngine(_preSale.address);
+
+    // set up dex
+    await token.connect(deployer).setDex(TESTNET_DEX_ROUTER_ADDRESS);
+
+    // set up treasury
+    await token.connect(deployer).setTreasury(treasury.address);
 
     // Set dex variables
     router = await ethers.getContractAt("IDexRouter", await token.getRouter());
     pair = await ethers.getContractAt("IDexPair", await token.getPair());
 
     // contracts
-    lrf = await ethers.getContractAt("LiquidityReliefFund", await token.lrf());
-    safeExit = await ethers.getContractAt("SafeExitFund", await token.safeExitFund());
+    lrf = await ethers.getContractAt("LiquidityReliefFund", await token.getLrfAddress());
+    safeExit = await ethers.getContractAt("SafeExitFund", await token.getSafeExitFundAddress());
   });
 
   it("Should mint 100m tokens", async function () {
@@ -61,8 +95,8 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
   it("Treasury should be able to add initial liquidity to liquidity pool", async function () {
     // Approve DEX to transfer
-    await token.connect(treasury).allowPreSaleTransfer(router.address, true);
-    await token.connect(treasury).approve(router.address, ether(999999999999));
+    // await token.connect(treasury).allowPreSaleTransfer(router.address, true);
+    await token.connect(treasury).approve(router.address, MAX_INT);
 
     // Add 10 million tokens + 10 BNB into liquidity
     const tokenAmount = ether(10000000);
@@ -94,6 +128,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(await token.balanceOf(account1.address)).to.equal(ether(1000));
   });
 
+  /*
   it("Should block other accounts from transacting until trading is open", async function () {
     try {
       await transferTokens({ token, from: account1, to: account2, amount: ether(100) });
@@ -105,7 +140,6 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(await token.balanceOf(account2.address)).to.equal(ether(0));
 
     // account1 buys 1000 tokens
-    await token.connect(account1).approve(router.address, ether(999999999999));
     try {
       await buyTokensFromDex({ router, pair, token, account: account1, tokenAmount: ether(1000) });
     } catch (error) {
@@ -115,9 +149,10 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(await token.balanceOf(account1.address)).to.equal(ether(1000));
     expect(await token.balanceOf(account2.address)).to.equal(ether(0));
   });
+  */
 
   it("Should open up trading and allow accounts to transact", async function () {
-    await token.connect(treasury).openTrade();
+    // await token.connect(treasury).openTrade();
     await token.connect(treasury).launchToken();
     await transferTokens({ token, from: account1, to: account2, amount: ether(100) });
     expect(await token.balanceOf(account2.address)).to.equal(ether(100));
@@ -163,8 +198,8 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
     // check that fees have been taken
     expect(await token.balanceOf(account3.address)).to.equal(ether(850));
-    expect(await token.balanceOf(await token.swapEngine())).to.equal(ether(70));
-    expect(await token.balanceOf(await token.autoLiquidityEngine())).to.equal(ether(30));
+    expect(await token.balanceOf(await token.getSwapEngineAddress())).to.equal(ether(70));
+    expect(await token.balanceOf(await token.getAutoLiquidityAddress())).to.equal(ether(30));
     expect(await token.balanceOf(DEAD)).to.equal(ether(50));
   });
 
@@ -203,12 +238,13 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
       10 // 1%  _burnFee
     );
 
+    await token.connect(account1).approve(router.address, MAX_INT);
     await sellTokens({ router, token, account: account1, tokenAmount: ether(900) });
 
     // check that fees have been taken
     expect(await token.balanceOf(account1.address)).to.equal(0);
-    expect(await token.balanceOf(await token.swapEngine())).to.equal(ether(70 + 90));
-    expect(await token.balanceOf(await token.autoLiquidityEngine())).to.equal(ether(30 + 45));
+    expect(await token.balanceOf(await token.getSwapEngineAddress())).to.equal(ether(70 + 90));
+    expect(await token.balanceOf(await token.getAutoLiquidityAddress())).to.equal(ether(30 + 45));
     expect(await token.balanceOf(DEAD)).to.equal(ether(50 + 9));
   });
 
@@ -221,8 +257,8 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     const lrfEthBalanceBefore = await ethers.provider.getBalance(lrf.address);
     const safeExitEthBalanceBefore = await ethers.provider.getBalance(safeExit.address);
 
-    // calculate how much eth received when swaping 160 tokens
-    expect(await token.balanceOf(await token.swapEngine())).to.equal(ether(160));
+    // calculate how much eth received when swapping 160 tokens
+    expect(await token.balanceOf(await token.getSwapEngineAddress())).to.equal(ether(160));
     const ethToReceive = await calculateEthToReceive({ token, pair, tokenAmount: ether(160) });
 
     // sell tokens
@@ -236,7 +272,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
     // check that balances have been updated
     expect(await token.balanceOf(account2.address)).to.equal(0);
-    expect(await token.balanceOf(await token.swapEngine())).to.equal(ether(10));
+    expect(await token.balanceOf(await token.getSwapEngineAddress())).to.equal(ether(10));
 
     const treasuryEthDifference = treasuryEthBalanceAfter.sub(treasuryEthBalanceBefore);
     const lrfEthDifference = lrfEthBalanceAfter.sub(lrfEthBalanceBefore);
@@ -253,6 +289,8 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     await token.connect(treasury).setSwapFrequency(84600);
     await token.connect(treasury).setAutoLiquidityFrequency(0);
 
+    expect(await token.balanceOf(await token.getAutoLiquidityAddress())).to.equal(ether(80));
+
     const reservesBefore = await getLiquidityReserves({ token, pair });
 
     // do a transaction
@@ -265,6 +303,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
     expect(ethReservesDifference).to.equal(0);
     expect(tokenReservesDifference).to.be.closeTo(ether(80), ether(1));
+    // expect(await token.balanceOf(await token.getAutoLiquidityAddress())).to.be.closeTo(0, ether(1));
   });
 
   it("Should allow transactions when all features are enabled", async function () {

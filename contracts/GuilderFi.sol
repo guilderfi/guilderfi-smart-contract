@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.10;
+pragma solidity 0.8.9;
 
 // Libraries
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -12,13 +12,11 @@ import "./interfaces/IDexPair.sol";
 import "./interfaces/IDexRouter.sol";
 import "./interfaces/IDexFactory.sol";
 import "./interfaces/IGuilderFi.sol";
-
-// Other contracts
-import "./SwapEngine.sol";
-import "./LiquidityReliefFund.sol";
-import "./AutoLiquidityEngine.sol";
-import "./SafeExitFund.sol";
-import "./PreSale.sol";
+import "./interfaces/ISwapEngine.sol";
+import "./interfaces/ILiquidityReliefFund.sol";
+import "./interfaces/IAutoLiquidityEngine.sol";
+import "./interfaces/ISafeExitFund.sol";
+import "./interfaces/IPreSale.sol";
 
 contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
@@ -55,23 +53,16 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     uint256 public override maxRebaseBatchSize = 40; // 8 hours
     
     // ADDRESSES
-    address internal _treasuryAddress = 0x46Af38553B5250f2560c3fc650bbAD0950c011c0; 
+    address internal _treasuryAddress;
     address internal _burnAddress = DEAD;
 
     // OTHER CONTRACTS
-    ISwapEngine public swapEngine;
-    ILiquidityReliefFund public lrf;
-    IAutoLiquidityEngine public autoLiquidityEngine;
-    ISafeExitFund public safeExitFund;
-    IPreSale public preSale;
+    ISwapEngine private swapEngine;
+    ILiquidityReliefFund private lrf;
+    IAutoLiquidityEngine private autoLiquidityEngine;
+    ISafeExitFund private safeExitFund;
+    IPreSale private preSale;
     
-    // DEX ROUTER ADDRESS
-    // address private constant DEX_ROUTER_ADDRESS = 0x10ED43C718714eb63d5aA57B78B54704E256024E; // PancakeSwap BSC Mainnet
-    // address private constant DEX_ROUTER_ADDRESS = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1; // PancakeSwap BSC Testnet
-    // PancakeSwap BSC Testnet -> https://pancake.kiemtienonline360.com/
-    address private constant DEX_ROUTER_ADDRESS = 0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3; 
-    // address private constant DEX_ROUTER_ADDRESS = 0xc9C6f026E489e0A8895F67906ef1627f1E56860d; // AVAX Fuji OpenSwap router
-
     // FEES
     uint256 private constant MAX_BUY_FEES = 200; // 20%
     uint256 private constant MAX_SELL_FEES = 250; // 25%
@@ -119,16 +110,18 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     mapping(address => mapping(address => uint256)) private _allowedFragments;
     mapping(address => bool) public blacklist;
 
-    // PRE-SALE FLAGS
-    bool public override isPreSale = true;
+    // TOKEN LAUNCHED FLAG
     bool public override hasLaunched = false;
-    mapping(address => bool) private _allowPreSaleTransfer;
+
+    // PRE-SALE FLAGS
+    // bool public override isPreSale = true;
+    // mapping(address => bool) private _allowPreSaleTransfer;
 
     // MODIFIERS
-    modifier checkAllowTransfer() {
-        require(!isPreSale || msg.sender == owner() || _allowPreSaleTransfer[msg.sender], "Trading not open yet");
-        _;
-    }    
+    // modifier checkAllowTransfer() {
+    //    require(!isPreSale || msg.sender == owner() || _allowPreSaleTransfer[msg.sender], "Trading not open yet");
+    //     _;
+    // }    
 
     modifier swapping() {
         _inSwap = true;
@@ -142,54 +135,70 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     }
 
     constructor() Ownable() {
-
-        // set up DEX _router/_pair
-        _router = IDexRouter(DEX_ROUTER_ADDRESS); 
-        address pairAddress = IDexFactory(_router.factory()).createPair(_router.WETH(), address(this));
-        _pair = IDexPair(address(pairAddress));
-
-        // set exchange _router allowance
-        _allowedFragments[address(this)][address(_router)] = type(uint256).max;
+        // init treasury address
+        _treasuryAddress = msg.sender;
 
         // initialise total supply
         _totalSupply = INITIAL_FRAGMENTS_SUPPLY;
         _gonsPerFragment = TOTAL_GONS.div(_totalSupply);
         
         // exempt fees from contract + treasury
-        _isFeeExempt[_treasuryAddress] = true;
         _isFeeExempt[address(this)] = true;
+        _isFeeExempt[_treasuryAddress] = true;
 
-        // init swap engine
-        swapEngine = new SwapEngine();
-        _allowedFragments[address(swapEngine)][address(_router)] = type(uint256).max;
-        _isFeeExempt[address(swapEngine)] = true;
-
-        // init LRF
-        lrf = new LiquidityReliefFund();
-        _allowedFragments[address(lrf)][address(_router)] = type(uint256).max;
-        _isFeeExempt[address(lrf)] = true;
-
-        // init auto liquidity engine
-        autoLiquidityEngine = new AutoLiquidityEngine();
-        _allowedFragments[address(autoLiquidityEngine)][address(_router)] = type(uint256).max;
-        _isFeeExempt[address(autoLiquidityEngine)] = true;
-        
-        // init safe exit fund
-        safeExitFund = new SafeExitFund();
-        _allowedFragments[address(safeExitFund)][address(_router)] = type(uint256).max;
-        _isFeeExempt[address(safeExitFund)] = true;
-        
-        // init presale
-        preSale = new PreSale();
-        _allowedFragments[address(preSale)][address(_router)] = type(uint256).max;
-        _isFeeExempt[address(preSale)] = true;
-        _allowPreSaleTransfer[address(preSale)] = true;
-
-        // transfer ownership + total supply to treasury
+        // assign total supply to treasury
         _gonBalances[_treasuryAddress] = TOTAL_GONS;
-        _transferOwnership(_treasuryAddress);
-
         emit Transfer(address(0x0), _treasuryAddress, _totalSupply);
+    }
+
+    function setSwapEngine(address _address) external override onlyOwner {
+        swapEngine = ISwapEngine(_address);
+        initSubContract(_address);
+    }
+
+    function setLrf(address _address) external override onlyOwner {
+        lrf = ILiquidityReliefFund(_address);
+        initSubContract(_address);
+    }
+
+    function setAutoLiquidityEngine(address _address) external override onlyOwner {
+        autoLiquidityEngine = IAutoLiquidityEngine(_address);
+        initSubContract(_address);
+    }        
+
+    function setSafeExitFund(address _address) external override onlyOwner {
+        safeExitFund = ISafeExitFund(_address);
+        initSubContract(_address);
+    }
+    
+    function setPreSaleEngine(address _address) external override onlyOwner {
+        preSale = IPreSale(_address);
+        initSubContract(_address);
+    }
+
+    function initSubContract(address _address) internal {
+        if (address(_router) != address(0)) {
+            _allowedFragments[_address][address(_router)] = type(uint256).max;
+        }
+
+        _isFeeExempt[_address] = true;
+        // _allowPreSaleTransfer[_address] = true;
+    }
+
+    function setTreasury(address _address) external override onlyOwner {
+        require(_treasuryAddress != _address, "Address already in use");
+        
+        _gonBalances[_address] = _gonBalances[_treasuryAddress];
+        _gonBalances[_treasuryAddress] = 0;
+        emit Transfer(_treasuryAddress, _address, _gonBalances[_address].div(_gonsPerFragment));
+        
+        _treasuryAddress = _address;
+
+        // exempt fees
+        _isFeeExempt[_treasuryAddress] = true;
+
+        // transfer ownership
+        _transferOwnership(_treasuryAddress);
     }
 
     /*
@@ -271,10 +280,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         validRecipient(to)
         returns (bool) {
 
-        if (blocked) {
-            return true;
-        }
-
         if (_allowedFragments[from][msg.sender] != type(uint256).max) {
             _allowedFragments[from][msg.sender] = _allowedFragments[from][msg.sender].sub(value, "Insufficient allowance");
         }
@@ -290,7 +295,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         return true;
     }
 
-    function _transferFrom(address sender, address recipient, uint256 amount) internal checkAllowTransfer returns (bool) {
+    function _transferFrom(address sender, address recipient, uint256 amount) internal returns (bool) {
     
         require(!blacklist[sender] && !blacklist[recipient], "Address blacklisted");
 
@@ -321,23 +326,26 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     function preTransactionActions(address sender, address recipient, uint256 amount) internal swapping {
 
         if (shouldExecuteSafeExit()) {
-            executeSafeExit(sender, recipient, amount);
+            safeExitFund.execute(sender, recipient, amount);
         }
 
         if (shouldSwapBack()) {
-            swapBack();
+            swapEngine.execute();
+            lastSwapTime = block.timestamp;
+        }
+
+        if (shouldAddLiquidity()) {
+            autoLiquidityEngine.execute();
+            lastAddLiquidityTime = block.timestamp;
+        }
+   
+        if (shouldExecuteLrf()) {
+            lrf.execute();
+            lastLrfExecutionTime = block.timestamp;
         }
 
         if (shouldRebase()) {
             rebase();
-        }
-
-        if (shouldAddLiquidity()) {
-            executeAutoLiquidityEngine();
-        }
-   
-        if (shouldExecuteLrf()) {
-            executeLrf();
         }
     }
 
@@ -383,25 +391,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         return gonAmount.sub(total);
     }
     
-    function executeLrf() internal {
-        lrf.execute();
-        lastLrfExecutionTime = block.timestamp;
-    }
-
-    function executeAutoLiquidityEngine() internal {
-        autoLiquidityEngine.execute();
-        lastAddLiquidityTime = block.timestamp;
-    }
-
-    function executeSafeExit(address sender, address recipient, uint256 amount) internal {
-        safeExitFund.execute(sender, recipient, amount);
-    }
-
-    function swapBack() internal {
-        swapEngine.execute();
-        lastSwapTime = block.timestamp;
-    }
-
     /*
      * INTERNAL CHECKER FUNCTIONS
      */ 
@@ -528,9 +517,9 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         blacklist[_address] = _flag;    
     }
 
-    function allowPreSaleTransfer(address _addr, bool _flag) external override onlyOwner {
-        _allowPreSaleTransfer[_addr] = _flag;
-    }
+    // function allowPreSaleTransfer(address _addr, bool _flag) external override onlyOwner {
+    //     _allowPreSaleTransfer[_addr] = _flag;
+    // }
 
     function setMaxRebaseBatchSize(uint256 _maxRebaseBatchSize) external override onlyOwner {
         maxRebaseBatchSize = _maxRebaseBatchSize;
@@ -546,7 +535,14 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
             pairAddress = IDexFactory(_router.factory()).createPair(_router.WETH(), address(this));
         }
         _pair = IDexPair(address(pairAddress));
-        _allowedFragments[address(this)][address(_router)] = type(uint256).max;        
+
+        // update allowances
+        _allowedFragments[address(this)][_routerAddress] = type(uint256).max;
+        _allowedFragments[address(swapEngine)][_routerAddress] = type(uint256).max;
+        _allowedFragments[address(lrf)][_routerAddress] = type(uint256).max;
+        _allowedFragments[address(autoLiquidityEngine)][_routerAddress] = type(uint256).max;
+        _allowedFragments[address(safeExitFund)][_routerAddress] = type(uint256).max;
+        _allowedFragments[address(preSale)][_routerAddress] = type(uint256).max;                          
     }
 
     function setAutoLiquidityFrequency(uint256 _frequency) external override onlyOwner {
@@ -559,20 +555,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     
     function setSwapFrequency(uint256 _frequency) external override onlyOwner {
         swapFrequency = _frequency;
-    }
-
-    function setAddresses(
-        address treasuryAddress,
-        address lrfAddress,
-        address autoLiquidityAddress,
-        address safeExitFundAddress,
-        address burnAddress
-    ) external override onlyOwner {
-        _treasuryAddress = treasuryAddress;
-        lrf = ILiquidityReliefFund(lrfAddress);
-        autoLiquidityEngine = IAutoLiquidityEngine(autoLiquidityAddress);
-        safeExitFund = ISafeExitFund(safeExitFundAddress);
-        _burnAddress = burnAddress;
     }
 
     function setFees(
@@ -603,14 +585,14 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         }
     }
 
-    function openTrade() external override onlyOwner {
-        isPreSale = false;
-    }
+    // function openTrade() external override onlyOwner {
+    //    isPreSale = false;
+    // }
 
     function launchToken() external override onlyOwner {
         require(!hasLaunched, "Token has already launched");
 
-        isPreSale = false;
+        // isPreSale = false;
         hasLaunched = true;
 
         // record rebase timestamps
@@ -639,6 +621,9 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     }
     function getTreasuryAddress() public view override returns (address) {
         return _treasuryAddress;
+    }
+    function getSwapEngineAddress() public view override returns (address) {
+        return address(swapEngine);
     }
     function getLrfAddress() public view override returns (address) {
         return address(lrf);

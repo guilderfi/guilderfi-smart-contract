@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.10;
+pragma solidity 0.8.9;
 
 interface IGuilderFi {
       
@@ -38,7 +38,7 @@ interface IGuilderFi {
     function approve(address spender, uint256 value) external returns (bool);
 
     // Smart Contract Settings
-    function openTrade() external;
+    // function openTrade() external;
     function launchToken() external;
     function setAutoSwap(bool _flag) external;
     function setAutoAddLiquidity(bool _flag) external;
@@ -47,30 +47,15 @@ interface IGuilderFi {
     function setLrfFrequency(uint256 _frequency) external;
     function setSwapFrequency(uint256 _frequency) external;    
     function setMaxRebaseBatchSize(uint256 _maxRebaseBatchSize) external;
-    function setDex(address routerAddress) external;
-    function setAddresses(
-        address treasuryAddress,
-        address lrfAddress,
-        address autoLiquidityAddress,
-        address safeExitFundAddress,
-        address burnAddress
-    ) external;
-    function setFees(
-        bool _isSellFee,
-        uint256 _treasuryFee,
-        uint256 _lrfFee,
-        uint256 _liquidityFee,
-        uint256 _safeExitFee,
-        uint256 _burnFee
-    ) external;
+
 
     // Address settings
     function setFeeExempt(address _address, bool _flag) external;
     function setBlacklist(address _address, bool _flag) external;
-    function allowPreSaleTransfer(address _addr, bool _flag) external;
+    // function allowPreSaleTransfer(address _addr, bool _flag) external;
 
     // Read only functions
-    function isPreSale() external view returns (bool);
+    // function isPreSale() external view returns (bool);
     function hasLaunched() external view returns (bool);
     function getCirculatingSupply() external view returns (uint256);
     function checkFeeExempt(address _addr) external view returns (bool);
@@ -79,11 +64,29 @@ interface IGuilderFi {
     // Addresses
     function getOwner() external view returns (address);
     function getTreasuryAddress() external view returns (address);
+    function getSwapEngineAddress() external view returns (address);
     function getLrfAddress() external view returns (address);
     function getAutoLiquidityAddress() external view returns (address);
     function getSafeExitFundAddress() external view returns (address);
     function getPreSaleAddress() external view returns (address);
     function getBurnAddress() external view returns (address);
+
+    function setSwapEngine (address _address) external;
+    function setLrf (address _address) external;
+    function setAutoLiquidityEngine (address _address) external;
+    function setSafeExitFund (address _address) external;
+    function setPreSaleEngine (address _address) external;
+    function setTreasury(address _address) external;
+    function setDex(address routerAddress) external;
+
+    function setFees(
+        bool _isSellFee,
+        uint256 _treasuryFee,
+        uint256 _lrfFee,
+        uint256 _liquidityFee,
+        uint256 _safeExitFee,
+        uint256 _burnFee
+    ) external;
 
     // Setting flags
     function swapEnabled() external view returns (bool);
