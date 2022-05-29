@@ -20,7 +20,6 @@ const {
   PRIVATE_KEY,
   ETHERSCAN_API_KEY,
   REPORT_GAS,
-  TREASURY_ADDRESS,
 } = process.env;
 const TOKEN_NAME = "GuilderFi";
 
