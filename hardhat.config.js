@@ -151,7 +151,7 @@ task("setup", "Set up")
       await token.connect(deployer).setLrf(lrf.address);
     }
     console.log(`LRF deployed at: ${await token.getLrfAddress()}`);
-  
+
     // create safe exit fund
     if ((await token.getSafeExitFundAddress()) === ZERO_ADDRESS) {
       console.log("Deploying Safe Exit Fund...");
