@@ -11,8 +11,8 @@ const {
   gasUsed,
   MAX_INT,
   getLiquidityReserves,
-} = require("./helpers");
-const { tier1, tier2, tier3 } = require("./helpers/data");
+} = require("../helpers");
+const { tier1, tier2, tier3 } = require("../helpers/data");
 
 const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
 const TOKEN_NAME = "GuilderFi";

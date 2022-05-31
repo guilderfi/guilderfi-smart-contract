@@ -61,6 +61,12 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     IAutoLiquidityEngine private autoLiquidityEngine;
     ISafeExitFund private safeExitFund;
     IPreSale private preSale;
+
+    address private _swapEngineAddress;
+    address private _lrfAddress;
+    address private _autoLiquidityEngineAddress;
+    address private _safeExitFundAddress;
+    address private _preSaleAddress;
     
     // FEES
     uint256 private constant MAX_BUY_FEES = 200; // 20%
@@ -74,8 +80,8 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     Fee private _sellFees = Fee(40, 70, 60, 10, 0, 180);
 
     // SETTING FLAGS
-    bool public override isAutoSwapEnabled = true;
     bool public override isAutoRebaseEnabled = true;
+    bool public override isAutoSwapEnabled = true;
     bool public override isAutoLiquidityEnabled = true;
     bool public override isAutoLrfEnabled = true;
     bool public override isAutoSafeExitEnabled = true;
@@ -142,26 +148,31 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     }
 
     function setSwapEngine(address _address) external override onlyOwner {
+        _swapEngineAddress = _address;
         swapEngine = ISwapEngine(_address);
         initSubContract(_address);
     }
 
     function setLrf(address _address) external override onlyOwner {
+        _lrfAddress = _address;
         lrf = ILiquidityReliefFund(_address);
         initSubContract(_address);
     }
 
     function setLiquidityEngine(address _address) external override onlyOwner {
+        _autoLiquidityEngineAddress = _address;
         autoLiquidityEngine = IAutoLiquidityEngine(_address);
         initSubContract(_address);
     }        
 
     function setSafeExitFund(address _address) external override onlyOwner {
+        _safeExitFundAddress = _address;
         safeExitFund = ISafeExitFund(_address);
         initSubContract(_address);
     }
     
     function setPreSaleEngine(address _address) external override onlyOwner {
+        _preSaleAddress = _address;
         preSale = IPreSale(_address);
         initSubContract(_address);
     }
@@ -363,12 +374,12 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         }
 
         // add liquidity fees to auto liquidity engine
-        _gonBalances[address(autoLiquidityEngine)] = _gonBalances[address(autoLiquidityEngine)].add(liquidityAmount);
-        emit Transfer(sender, address(autoLiquidityEngine), liquidityAmount.div(_gonsPerFragment));
+        _gonBalances[_autoLiquidityEngineAddress] = _gonBalances[_autoLiquidityEngineAddress].add(liquidityAmount);
+        emit Transfer(sender, _autoLiquidityEngineAddress, liquidityAmount.div(_gonsPerFragment));
 
         // move the rest to swap engine
-        _gonBalances[address(swapEngine)] = _gonBalances[address(swapEngine)].add(totalToSwap);
-        emit Transfer(sender, address(swapEngine), totalToSwap.div(_gonsPerFragment));
+        _gonBalances[_swapEngineAddress] = _gonBalances[_swapEngineAddress].add(totalToSwap);
+        emit Transfer(sender, _swapEngineAddress, totalToSwap.div(_gonsPerFragment));
         
         // record fees in swap engine
         swapEngine.recordFees(
@@ -386,8 +397,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     function shouldTakeFee(address from, address to) internal view returns (bool) {
         return 
             (address(_pair) == from || address(_pair) == to) &&
-            to != address(lrf) &&
-            to != address(autoLiquidityEngine) &&
             !_isFeeExempt[from];
     }
 
@@ -403,6 +412,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     function shouldAddLiquidity() internal view returns (bool) {
         return
             isAutoLiquidityEnabled && 
+            _autoLiquidityEngineAddress != address(0) &&
             // msg.sender != address(_pair) &&
             (autoLiquidityFrequency == 0 || (block.timestamp >= (lastAddLiquidityTime + autoLiquidityFrequency))); 
     }
@@ -410,6 +420,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     function shouldSwap() internal view returns (bool) {
         return 
             isAutoSwapEnabled &&
+            _swapEngineAddress != address(0) &&
             // msg.sender != address(_pair) &&
             (autoSwapFrequency == 0 || (block.timestamp >= (lastSwapTime + autoSwapFrequency)));
     }
@@ -417,11 +428,14 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     function shouldExecuteLrf() internal view returns (bool) {
         return
             isAutoLrfEnabled &&
+            _lrfAddress != address(0) &&            
             (autoLrfFrequency == 0 || (block.timestamp >= (lastLrfExecutionTime + autoLrfFrequency))); 
     }
 
-    function shouldExecuteSafeExit() internal pure returns (bool) {
-        return true;
+    function shouldExecuteSafeExit() internal view returns (bool) {
+        return
+            isAutoSafeExitEnabled &&
+            _safeExitFundAddress != address(0);
             // safeExitFund.balanceOf(msg.sender) > 0;
     }
 

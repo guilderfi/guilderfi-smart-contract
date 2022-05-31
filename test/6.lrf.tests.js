@@ -2,7 +2,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-const { print } = require("./helpers");
+const { print } = require("../helpers");
 
 const TOKEN_NAME = "GuilderFi";
 const DECIMALS = 18;

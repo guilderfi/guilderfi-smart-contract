@@ -1,7 +1,7 @@
 // const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-const { buyTokensFromDexByExactEth, sellTokens, addLiquidity, transferEth, ether, print, MAX_INT } = require("./helpers");
+const { buyTokensFromDexByExactEth, sellTokens, addLiquidity, transferEth, ether, print, MAX_INT } = require("../helpers");
 
 const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
 const TOKEN_NAME = "GuilderFi";

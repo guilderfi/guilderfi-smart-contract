@@ -4,6 +4,8 @@ const fs = require("fs");
 const { merge } = require("sol-merger");
 const { parse } = require("csv-parse/sync");
 
+const { verify } = require("./helpers/verify");
+
 require("dotenv").config();
 require("@nomiclabs/hardhat-etherscan");
 require("@nomiclabs/hardhat-waffle");
@@ -119,6 +121,13 @@ task("setup", "Set up")
     // get deployed token
     const token = await Token.attach(taskArgs.address);
 
+    // set up dex
+    if ((await token.getRouter()) === ZERO_ADDRESS) {
+      console.log("Setting up DEX...");
+      await token.connect(deployer).setDex(TESTNET_DEX_ROUTER_ADDRESS);
+    }
+    console.log(`N1/AVAX Pair: ${await token.getPair()}`);
+
     // create swap engine
     if ((await token.getSwapEngineAddress()) === ZERO_ADDRESS) {
       console.log("Deploying Swap Engine...");
@@ -142,7 +151,7 @@ task("setup", "Set up")
       await token.connect(deployer).setLrf(lrf.address);
     }
     console.log(`LRF deployed at: ${await token.getLrfAddress()}`);
-
+  
     // create safe exit fund
     if ((await token.getSafeExitFundAddress()) === ZERO_ADDRESS) {
       console.log("Deploying Safe Exit Fund...");
@@ -159,15 +168,13 @@ task("setup", "Set up")
     }
     console.log(`Pre-sale deployed at: ${await token.getPreSaleAddress()}`);
 
-    // set up dex
-    if ((await token.getRouter()) === ZERO_ADDRESS) {
-      console.log("Setting up DEX...");
-      await token.connect(deployer).setDex(TESTNET_DEX_ROUTER_ADDRESS);
-    }
-    console.log(`DEX Pair: ${await token.getPair()}`);
-
     // transfer ownership to treasury
-    await token.connect(deployer).setTreasury(treasury.address);
+    if ((await token.getOwner()) !== treasury.address) {
+      console.log("Transferring ownership to treasury...");
+      await token.connect(deployer).setTreasury(treasury.address);
+    }
+
+    console.log("Done!");
   });
 
 task("turn-on", "Turn everything on")
@@ -196,11 +203,11 @@ task("verify-all", "Verify all contracts on etherscan")
     const safeExitFundAddress = await token.getSafeExitFundAddress();
     const preSaleAddress = await token.getPreSaleAddress();
 
-    await hre.run("verify:verify", { address: token.address, network: hre.network.name });
-    await hre.run("verify:verify", { address: lrfAddress, network: hre.network.name, constructorArguments: [token.address] });
-    await hre.run("verify:verify", { address: autoLiquidityAddress, network: hre.network.name, constructorArguments: [token.address] });
-    await hre.run("verify:verify", { address: safeExitFundAddress, network: hre.network.name, constructorArguments: [token.address] });
-    await hre.run("verify:verify", { address: preSaleAddress, network: hre.network.name, constructorArguments: [token.address] });
+    await verify(hre, token.address);
+    await verify(hre, lrfAddress, [token.address]);
+    await verify(hre, autoLiquidityAddress, [token.address]);
+    await verify(hre, safeExitFundAddress, [token.address]);
+    await verify(hre, preSaleAddress, [token.address]);
   });
 
 /**
@@ -226,6 +233,8 @@ module.exports = {
     },
     localhost: {
       url: "http://127.0.0.1:8545",
+      gasPrice: 225000000000,
+      gasLimit: 21000,
     },
     testnet: {
       url: TESTNET_URL,

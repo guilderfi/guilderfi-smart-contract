@@ -18,8 +18,6 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
     // GuilderFi token contract address
     IGuilderFi internal _token;
  
-    bool internal _enabled = true;
-
     // PRIVATE FLAGS
     bool private _isRunning = false;
     modifier running() {
@@ -53,8 +51,7 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
 
     function shouldExecute() internal view returns (bool) {
         return
-            !_isRunning &&
-            _enabled;
+            !_isRunning;
     }
 
     function _execute() internal running {        

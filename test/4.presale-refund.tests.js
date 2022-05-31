@@ -1,8 +1,8 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-const { ether, print, transferTokens } = require("./helpers");
-const { publicTier, tier1 } = require("./helpers/data");
+const { ether, print, transferTokens } = require("../helpers");
+const { publicTier, tier1 } = require("../helpers/data");
 
 const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
 const TOKEN_NAME = "GuilderFi";

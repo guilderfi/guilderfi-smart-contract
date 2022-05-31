@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-const { ether, print, transferTokens, calculateLPtokens, getLiquidityReserves } = require("./helpers");
+const { ether, print, transferTokens, calculateLPtokens, getLiquidityReserves } = require("../helpers");
 
 const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
 const TOKEN_NAME = "GuilderFi";
@@ -19,7 +19,7 @@ let account6;
 let account7;
 let preSale;
 
-const { tier1, tier2, tier3, publicTier } = require("./helpers/data");
+const { tier1, tier2, tier3, publicTier } = require("../helpers/data");
 
 let tokensPurchased = ether(0);
 let ethSpent = ether(0);

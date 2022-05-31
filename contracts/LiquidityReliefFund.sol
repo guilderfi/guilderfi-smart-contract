@@ -22,6 +22,7 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
     uint256 public constant PERCENTAGE_ACCURACY_FACTOR = 10 ** 4;
 
     uint256 public constant ACTIVATION_TARGET = 10000; // 100.00%
+    uint256 public constant MIDPOINT = 10000; // 100.00%
     uint256 public constant LOW_CAP = 8500; // 85.00%
     uint256 public constant HIGH_CAP = 11500; // 115.00%
 
@@ -70,6 +71,10 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
         }
     }
 
+    function forceExecute() override external onlyTokenOwner {
+        _execute();
+    }
+
     function shouldExecute() internal view returns (bool) {
         uint256 backedLiquidityRatio = getBackedLiquidityRatio();
 
@@ -90,10 +95,10 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
             return;
         }
 
-        if (backedLiquidityRatio > HIGH_CAP) {
+        if (backedLiquidityRatio > MIDPOINT) {
             buyTokens();
         }
-        else if (backedLiquidityRatio < LOW_CAP) {
+        else if (backedLiquidityRatio < MIDPOINT) {
             sellTokens();
         }
     }
@@ -175,6 +180,11 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
 
     function getLiquidityPoolReserves() internal view returns (uint256, uint256) {
         IDexPair pair = getPair();
+
+        if (address(pair) == address(0)) {
+            return (0, 0);
+        }
+
         address token0Address = pair.token0();
         (uint256 token0Reserves, uint256 token1Reserves, ) = pair.getReserves();
         

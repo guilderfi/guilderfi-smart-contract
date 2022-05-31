@@ -12,7 +12,7 @@ const {
   ether,
   print,
   MAX_INT,
-} = require("./helpers");
+} = require("../helpers");
 
 const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
 const TOKEN_NAME = "GuilderFi";
