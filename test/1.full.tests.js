@@ -1,7 +1,17 @@
 // const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { task } = require("hardhat/config");
 
-const { buyTokensFromDexByExactEth, sellTokens, addLiquidity, transferEth, ether, print, MAX_INT } = require("../helpers");
+const {
+  buyTokensFromDexByExactEth,
+  sellTokens,
+  addLiquidity,
+  transferEth,
+  ether,
+  print,
+  getLiquidityReserves,
+  MAX_INT,
+} = require("../helpers");
 
 const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
 const TOKEN_NAME = "GuilderFi";
@@ -60,7 +70,8 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     await token.connect(deployer).setTreasury(treasury.address);
 
     // Set dex variables
-    router = await ethers.getContractAt("IDexRouter", await token.getRouter());
+    // router = await ethers.getContractAt("IDexRouter", await token.getRouter());
+    router = await ethers.getContractAt("IDexRouter", "0xc9C6f026E489e0A8895F67906ef1627f1E56860d");
     pair = await ethers.getContractAt("IDexPair", await token.getPair());
 
     tx = await token.connect(treasury).setAutoSwap(true);
@@ -70,6 +81,12 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     await tx.wait();
 
     tx = await token.connect(treasury).setAutoRebase(true);
+    await tx.wait();
+
+    tx = await token.connect(treasury).setAutoLrf(true);
+    await tx.wait();
+
+    tx = await token.connect(treasury).setAutoSafeExit(true);
     await tx.wait();
 
     tx = await token.connect(treasury).setAutoLiquidityFrequency(0);
@@ -86,16 +103,17 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
   });
 
   it("Should allow transactions when all features are enabled", async function () {
+    let tx;
+
     // create random wallet and fund with 10 ether
     const wallet = ethers.Wallet.createRandom().connect(ethers.provider);
-    await transferEth({ from: deployer, to: wallet, amount: ether(0.2) });
-    await transferEth({ from: deployer, to: wallet, amount: ether(1) });
+    await transferEth({ from: deployer, to: wallet, amount: ether(10) });
 
-    await token.connect(treasury).approve(await token.getRouter(), MAX_INT);
+    tx = await token.connect(treasury).approve(router.address, MAX_INT);
+    await tx.wait();
+
     const tokenAmount = ether(1000);
     const ethAmount = ether(1);
-
-    let tx;
 
     tx = await addLiquidity({
       router,
@@ -106,11 +124,15 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     });
     await tx.wait();
 
+    // get pair -> todo: remove after setting dex
+    const factory = await ethers.getContractAt("IDexFactory", await router.factory());
+    pair = await ethers.getContractAt("IDexPair", await factory.getPair(await router.WETH(), token.address));
+
     // expect(await token.balanceOf(wallet.address)).to.equal(0);
     tx = await buyTokensFromDexByExactEth({ router, pair, token, account: wallet, ethAmount: ether(0.1) });
     await tx.wait();
 
-    await token.connect(wallet).approve(await token.getRouter(), await token.balanceOf(wallet.address));
+    await token.connect(wallet).approve(router.address, await token.balanceOf(wallet.address));
     tx = await sellTokens({
       router,
       token,
@@ -119,21 +141,24 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     });
     await tx.wait();
 
-    // await printStatus({ token, treasury, ethers });
+    // const { tokenReserves, ethReserves } = await getLiquidityReserves({ token, pair });
 
-    /*
-    const { tokenReserves, ethReserves } = await getLiquidityReserves({ token, pair });
+    tx = await token.connect(treasury).approve(router.address, MAX_INT);
+    await tx.wait();
+  });
 
-    await router
+  it("Remove liquidity", async () => {
+    const tx = await router
       .connect(treasury)
       .removeLiquidityETHSupportingFeeOnTransferTokens(
         token.address,
         await pair.balanceOf(treasury.address),
-        tokenReserves.div(2),
-        ethReserves.div(2),
+        0,
+        0,
         treasury.address,
-        (await ethers.provider.getBlock("latest")).timestamp + 86400
+        (await ethers.provider.getBlock("latest")).timestamp + 1200
       );
-    */
+
+    await tx.wait();
   });
 });

@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-const { ether, print, transferTokens, calculateLPtokens, getLiquidityReserves } = require("../helpers");
+const { ether, print, transferTokens, calculateLPtokens, getLiquidityReserves, gasUsed } = require("../helpers");
 
 const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
 const TOKEN_NAME = "GuilderFi";
@@ -314,7 +314,8 @@ describe(`Testing pre-sale..`, function () {
 
     // finalize sale
     // await token.connect(treasury).openTrade();
-    await preSale.connect(treasury).finalizeSale();
+    const tx = await preSale.connect(treasury).finalizeSale();
+    const gas = await gasUsed(tx);
 
     // calculate how much was sent to treasury
     const treasuryEthAfter = await ethers.provider.getBalance(treasury.address);
@@ -330,7 +331,7 @@ describe(`Testing pre-sale..`, function () {
     // check account balances
     expect(await ethers.provider.getBalance(await token.getLrfAddress())).to.equal(expectedLrfEth);
     expect(await ethers.provider.getBalance(await token.getSafeExitFundAddress())).to.equal(expectedSafeExitEth);
-    expect(treasuryEth).to.be.closeTo(expectedTreasuryEth, ether(0.01)); // account for gas to finalise sale
+    expect(treasuryEth).to.equal(expectedTreasuryEth.sub(gas)); // account for gas to finalise sale
 
     const expectedLPtokens = calculateLPtokens({ tokenAmount: expectedLiquidityTokens, ethAmount: expectedLiquidityEth });
 

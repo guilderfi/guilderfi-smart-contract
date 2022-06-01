@@ -38,11 +38,13 @@ const transferEth = async ({ from, to, amount }) => {
     value: amount,
   });
 
+  await tx.wait();
+
   return tx;
 };
 
 const addLiquidity = async ({ router, from, token, tokenAmount, ethAmount }) => {
-  const timestamp = (await ethers.provider.getBlock("latest")).timestamp + 1;
+  const timestamp = (await ethers.provider.getBlock("latest")).timestamp + 1200; // 20 mins
   const tx = await router.connect(from).addLiquidityETH(token.address, tokenAmount, 0, 0, from.address, timestamp, {
     value: ethAmount,
   });
@@ -58,15 +60,13 @@ const buyTokensFromDex = async ({ router, pair, token, account, tokenAmount }) =
   const denominator = tokenReserves.sub(tokenAmount).mul(9970);
   const ethAmount = numerator.div(denominator).add(1);
 
-  const tx = await router
-    .connect(account)
-    .swapETHForExactTokens(
-      tokenAmount,
-      [await router.WETH(), token.address],
-      account.address,
-      (await ethers.provider.getBlock("latest")).timestamp + 1,
-      { value: ethAmount }
-    );
+  const tx = await router.connect(account).swapETHForExactTokens(
+    tokenAmount,
+    [await router.WETH(), token.address],
+    account.address,
+    (await ethers.provider.getBlock("latest")).timestamp + 1200, // 20 mins
+    { value: ethAmount }
+  );
 
   return tx;
 };
@@ -76,7 +76,7 @@ const buyTokensFromDexByExactEth = async ({ router, token, account, ethAmount })
     0, // min number of tokens
     [await router.WETH(), token.address],
     account.address,
-    (await ethers.provider.getBlock("latest")).timestamp + 1,
+    (await ethers.provider.getBlock("latest")).timestamp + 1200, // 20 mins
     { value: ethAmount }
   );
 
@@ -89,7 +89,7 @@ const sellTokens = async ({ router, token, account, tokenAmount, expiry }) => {
     0, // minimum ETH out
     [token.address, await router.WETH()], // pair
     account.address, // recipient
-    expiry ?? (await ethers.provider.getBlock("latest")).timestamp + 1
+    expiry ?? (await ethers.provider.getBlock("latest")).timestamp + 1200 // 20 mins
   );
 
   return tx;

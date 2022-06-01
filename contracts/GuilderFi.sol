@@ -382,11 +382,13 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         emit Transfer(sender, _swapEngineAddress, totalToSwap.div(_gonsPerFragment));
         
         // record fees in swap engine
-        swapEngine.recordFees(
-            lrfAmount.div(_gonsPerFragment),
-            safeExitAmount.div(_gonsPerFragment),
-            treasuryAmount.div(_gonsPerFragment)
-        );
+        if (address(swapEngine) != address(0)) {
+            swapEngine.recordFees(
+                lrfAmount.div(_gonsPerFragment),
+                safeExitAmount.div(_gonsPerFragment),
+                treasuryAmount.div(_gonsPerFragment)
+            );
+        }
 
         return gonAmount.sub(total);
     }
@@ -395,9 +397,10 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
      * INTERNAL CHECKER FUNCTIONS
      */ 
     function shouldTakeFee(address from, address to) internal view returns (bool) {
-        return 
-            (address(_pair) == from || address(_pair) == to) &&
-            !_isFeeExempt[from];
+        if (_isFeeExempt[from]) return false;
+        if (address(_pair) == from || address(_pair) == to) return true;
+
+        return false;
     }
 
     function shouldRebase() internal view returns (bool) {
