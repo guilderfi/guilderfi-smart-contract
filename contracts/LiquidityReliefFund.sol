@@ -30,6 +30,8 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
     bool internal _hasReachedActivationTarget = false; 
     bool internal _enabled = true;
 
+    bool private _inSwap = false;
+
     // PRIVATE FLAGS
     bool private _isRunning = false;
     modifier running() {
@@ -122,12 +124,14 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
         path[0] = router.WETH();
         path[1] = address(_token);
 
+        _inSwap = true;
         router.swapExactETHForTokensSupportingFeeOnTransferTokens{ value: ethToBuy }(
             0,
             path,
             address(this),
             block.timestamp
         );
+        _inSwap = false;
     }
 
 
@@ -153,6 +157,7 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
         path[0] = address(_token);
         path[1] = router.WETH();
 
+        _inSwap = true;
         router.swapExactTokensForETHSupportingFeeOnTransferTokens(
             tokensToSell,
             0,
@@ -160,6 +165,7 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
             address(this),
             block.timestamp
         );
+        _inSwap = false;
     }
 
     function getBackedLiquidityRatio() public view returns (uint256) {
@@ -192,6 +198,10 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
         return token0Address == address(_token) ?
             (token1Reserves, token0Reserves) :
             (token0Reserves, token1Reserves);
+    }
+
+    function inSwap() public view override returns (bool) {
+        return _inSwap;
     }
 
     function getRouter() internal view returns (IDexRouter) {

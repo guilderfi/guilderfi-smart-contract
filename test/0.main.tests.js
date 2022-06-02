@@ -287,6 +287,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
   it("Auto liquidity engine should should add liquidity to exchange", async function () {
     // set frequency to zero to force auto liquidity on next transaction
     await token.connect(treasury).setSwapFrequency(84600);
+    await token.connect(treasury).setAutoLiquidity(true);
     await token.connect(treasury).setAutoLiquidityFrequency(0);
 
     expect(await token.balanceOf(await token.getAutoLiquidityAddress())).to.equal(ether(80));

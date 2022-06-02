@@ -26,6 +26,8 @@ contract SwapEngine is ISwapEngine {
     uint256 internal _lrfFeesCollected;
     uint256 internal _safeExitFeesCollected;
 
+    bool private _inSwap = false;
+
     // PRIVATE FLAGS
     bool private _isRunning = false;
     modifier running() {
@@ -85,6 +87,7 @@ contract SwapEngine is ISwapEngine {
         path[1] = _router.WETH();
 
         // swap all tokens in contract for ETH
+        _inSwap = true;
         _router.swapExactTokensForETHSupportingFeeOnTransferTokens(
             amountToSwap,
             0,
@@ -92,7 +95,8 @@ contract SwapEngine is ISwapEngine {
             address(this),
             block.timestamp
         );
-
+        _inSwap = false;
+        
         uint256 amountETH = address(this).balance.sub(balanceBefore);
         uint256 treasuryETH = amountETH.mul(_treasuryFeesCollected).div(totalGonFeesCollected);
         uint256 safeExitETH = amountETH.mul(_safeExitFeesCollected).div(totalGonFeesCollected);
@@ -122,6 +126,10 @@ contract SwapEngine is ISwapEngine {
 
     function isEnabled() public view override returns (bool) {
         return _isEnabled;
+    }
+
+    function inSwap() public view override returns (bool) {
+        return _inSwap;
     }
 
     function setEnabled(bool _enable) external override onlyTokenOwner {

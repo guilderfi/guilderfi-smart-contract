@@ -18,6 +18,8 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
     // GuilderFi token contract address
     IGuilderFi internal _token;
  
+    bool private _inSwap = false;
+
     // PRIVATE FLAGS
     bool private _isRunning = false;
     modifier running() {
@@ -68,6 +70,8 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
         
         IDexRouter router = getRouter();
 
+        _inSwap = true;
+
         address[] memory path = new address[](2);
         path[0] = address(_token);
         path[1] = router.WETH();
@@ -96,6 +100,12 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
                 block.timestamp
             );
         }
+
+        _inSwap = false;
+    }
+    
+    function inSwap() public view override returns (bool) {
+        return _inSwap;
     }
 
     function getRouter() internal view returns (IDexRouter) {

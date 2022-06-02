@@ -1,10 +1,6 @@
-const path = require("path");
 const { task } = require("hardhat/config");
-const fs = require("fs");
-const { merge } = require("sol-merger");
-const { parse } = require("csv-parse/sync");
-
 const { verify } = require("./helpers/verify");
+const { accounts } = require("./helpers/accounts");
 
 require("dotenv").config();
 require("@nomiclabs/hardhat-etherscan");
@@ -26,15 +22,6 @@ const {
 const TOKEN_NAME = "GuilderFi";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
-// fetch accounts from csv file
-const accounts = [];
-const inputCsvData = fs.readFileSync("./accounts.csv", "utf-8");
-const records = parse(inputCsvData, { columns: true });
-for (let i = 0; i < records.length; i++) {
-  const row = records[i];
-  accounts.push({ privateKey: row.private_key, balance: row.balance });
-}
-
 task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
   const accounts = await hre.ethers.getSigners();
   for (const account of accounts) {
@@ -45,26 +32,59 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 task("deploy", "Deploys the contract to the blockchain", async (taskArgs, hre) => {
   const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
   const token = await Token.deploy();
-
+  await token.deployed();
   console.log("Token deployed to contract address: ", token.address);
+  return token;
 });
 
+task("deploy-all", "Deploys the contract to the blockchain", async (taskArgs, hre) => {
+  const token = await hre.run("deploy");
+  await hre.run("setup", { address: token.address });
+  await hre.run("approve", { address: token.address });
+});
+
+task("approve", "Approve for trading")
+  .addParam("address", "Main GuilderFi contract address")
+  .setAction(async (taskArgs, hre) => {
+    const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
+    const token = await Token.attach(taskArgs.address);
+
+    // get treasury signer
+    const deployer = (await hre.ethers.getSigners())[0];
+    const treasury = (await hre.ethers.getSigners())[1];
+
+    // approvals
+    const router = await token.getRouter();
+    const pair = await hre.ethers.getContractAt("IDexPair", await token.getPair());
+
+    console.log("Pre-approving accounts to trade on DEX...");
+    await token.connect(treasury).approve(router, hre.ethers.constants.MaxUint256);
+    await token.connect(deployer).approve(router, hre.ethers.constants.MaxUint256);
+    await pair.connect(treasury).approve(router, hre.ethers.constants.MaxUint256);
+    console.log("Done!");
+  });
+
+task("disable", "Disable swapping")
+  .addParam("address", "Main GuilderFi contract address")
+  .setAction(async (taskArgs, hre) => {
+    const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
+    const token = await Token.attach(taskArgs.address);
+
+    // get treasury signer
+    const treasury = (await hre.ethers.getSigners())[1];
+
+    console.log("Disabling features...");
+    // await token.connect(treasury).setAutoSwap(false);
+    // await token.connect(treasury).setAutoLiquidity(false);
+    // await token.connect(treasury).setAutoLrf(false);
+    await token.connect(treasury).setAutoSafeExit(false);
+    console.log("Done!");
+  });
+
 task("deploy-and-verify", "Deploys the contract to the blockchain", async (taskArgs, hre) => {
-  const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
-  const token = await Token.deploy();
-
-  console.log("Token deployed to contract address: ", token.address);
-
-  const lrfAddress = await token.getLrfAddress();
-  const autoLiquidityAddress = await token.getAutoLiquidityAddress();
-  const safeExitFundAddress = await token.getSafeExitFundAddress();
-  const preSaleAddress = await token.getPreSaleAddress();
-
-  await hre.run("verify:verify", { address: token.address, network: hre.network.name });
-  await hre.run("verify:verify", { address: lrfAddress, network: hre.network.name });
-  await hre.run("verify:verify", { address: autoLiquidityAddress, network: hre.network.name });
-  await hre.run("verify:verify", { address: safeExitFundAddress, network: hre.network.name });
-  await hre.run("verify:verify", { address: preSaleAddress, network: hre.network.name });
+  const token = await hre.run("deploy");
+  await hre.run("setup", { address: token.address });
+  await hre.run("verify-all", { address: token.address });
 });
 
 task("presale", "Run presale stuff", async (taskArgs, hre) => {
@@ -79,30 +99,20 @@ task("presale", "Run presale stuff", async (taskArgs, hre) => {
   console.log("Pre sale - public sale is open: ", await preSale.isPublicSaleOpen());
 });
 
-task("script", "Run a script, e.g. scripts/airdrop.js")
-  .addParam("file", "Script to run")
-  .setAction(async (taskArgs, hre) => {
-    const script = require(taskArgs.file);
-    await script.run(hre.ethers);
-  });
+const deploySubContract = async ({ token, deployer, hre, contractName, getAddressFunc, setAddressFunc }) => {
+  const Contract = await hre.ethers.getContractFactory(contractName);
 
-task("merge", "Merge solidity contracts", async (taskArgs, hre) => {
-  const outputFolder = "artifacts";
-  const outputFile = "merged.sol";
-  const outputFolderPath = path.join(__dirname, outputFolder);
-  const outputFilePath = path.join(outputFolderPath, outputFile);
+  if ((await token[getAddressFunc]()) === ZERO_ADDRESS) {
+    console.log(`Deploying ${contractName}...`);
 
-  // merge files
-  let mergedCode = await merge(`./contracts/${TOKEN_NAME}.sol`, { removeComments: true });
+    const contract = await Contract.connect(deployer).deploy(token.address);
+    await contract.deployed();
 
-  // add license header
-  mergedCode = "// SPDX-License-Identifier: MIT\n\n" + mergedCode;
-
-  fs.mkdirSync(outputFolderPath, { recursive: true });
-  fs.writeFileSync(outputFilePath, mergedCode, "utf-8");
-
-  console.log("File created: ", outputFilePath);
-});
+    const tx = await token.connect(deployer)[setAddressFunc](contract.address);
+    await tx.wait();
+  }
+  console.log(`${contractName} deployed at: ${await token[getAddressFunc]()}`);
+};
 
 task("setup", "Set up")
   .addParam("address", "Main GuilderFi contract address")
@@ -112,11 +122,6 @@ task("setup", "Set up")
     const treasury = (await hre.ethers.getSigners())[1];
 
     const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
-    const SwapEngine = await hre.ethers.getContractFactory("SwapEngine");
-    const AutoLiquidityEngine = await hre.ethers.getContractFactory("AutoLiquidityEngine");
-    const LiquidityReliefFund = await hre.ethers.getContractFactory("LiquidityReliefFund");
-    const SafeExitFund = await hre.ethers.getContractFactory("SafeExitFund");
-    const PreSale = await hre.ethers.getContractFactory("PreSale");
 
     // get deployed token
     const token = await Token.attach(taskArgs.address);
@@ -124,49 +129,60 @@ task("setup", "Set up")
     // set up dex
     if ((await token.getRouter()) === ZERO_ADDRESS) {
       console.log("Setting up DEX...");
-      await token.connect(deployer).setDex(TESTNET_DEX_ROUTER_ADDRESS);
+      const tx = await token.connect(deployer).setDex(TESTNET_DEX_ROUTER_ADDRESS);
+      await tx.wait();
     }
     console.log(`N1/AVAX Pair: ${await token.getPair()}`);
 
     // create swap engine
-    if ((await token.getSwapEngineAddress()) === ZERO_ADDRESS) {
-      console.log("Deploying Swap Engine...");
-      const swapEngine = await SwapEngine.connect(deployer).deploy(token.address);
-      await token.connect(deployer).setSwapEngine(swapEngine.address);
-    }
-    console.log(`Swap Engine deployed at: ${await token.getSwapEngineAddress()}`);
+    await deploySubContract({
+      hre,
+      token,
+      deployer,
+      contractName: "SwapEngine",
+      getAddressFunc: "getSwapEngineAddress",
+      setAddressFunc: "setSwapEngine",
+    });
 
     // create auto liquidity engine
-    if ((await token.getAutoLiquidityAddress()) === ZERO_ADDRESS) {
-      console.log("Deploying Auto Liquidity Engine...");
-      const autoLiquidityEngine = await AutoLiquidityEngine.connect(deployer).deploy(token.address);
-      await token.connect(deployer).setLiquidityEngine(autoLiquidityEngine.address);
-    }
-    console.log(`Auto Liquidity Engine deployed at: ${await token.getAutoLiquidityAddress()}`);
+    await deploySubContract({
+      hre,
+      token,
+      deployer,
+      contractName: "AutoLiquidityEngine",
+      getAddressFunc: "getAutoLiquidityAddress",
+      setAddressFunc: "setLiquidityEngine",
+    });
 
     // create LRF
-    if ((await token.getLrfAddress()) === ZERO_ADDRESS) {
-      console.log("Deploying Liquidity Relief Fund...");
-      const lrf = await LiquidityReliefFund.connect(deployer).deploy(token.address);
-      await token.connect(deployer).setLrf(lrf.address);
-    }
-    console.log(`LRF deployed at: ${await token.getLrfAddress()}`);
+    await deploySubContract({
+      hre,
+      token,
+      deployer,
+      contractName: "LiquidityReliefFund",
+      getAddressFunc: "getLrfAddress",
+      setAddressFunc: "setLrf",
+    });
 
     // create safe exit fund
-    if ((await token.getSafeExitFundAddress()) === ZERO_ADDRESS) {
-      console.log("Deploying Safe Exit Fund...");
-      const safeExit = await SafeExitFund.connect(deployer).deploy(token.address);
-      await token.connect(deployer).setSafeExitFund(safeExit.address);
-    }
-    console.log(`Safe Exit deployed at: ${await token.getSafeExitFundAddress()}`);
+    await deploySubContract({
+      hre,
+      token,
+      deployer,
+      contractName: "SafeExitFund",
+      getAddressFunc: "getSafeExitFundAddress",
+      setAddressFunc: "setSafeExitFund",
+    });
 
     // create pre-sale
-    if ((await token.getPreSaleAddress()) === ZERO_ADDRESS) {
-      console.log("Deploying Pre-Sale...");
-      const preSale = await PreSale.connect(deployer).deploy(token.address);
-      await token.connect(deployer).setPreSaleEngine(preSale.address);
-    }
-    console.log(`Pre-sale deployed at: ${await token.getPreSaleAddress()}`);
+    await deploySubContract({
+      hre,
+      token,
+      deployer,
+      contractName: "PreSale",
+      getAddressFunc: "getPreSaleAddress",
+      setAddressFunc: "setPreSaleEngine",
+    });
 
     // transfer ownership to treasury
     if ((await token.getOwner()) !== treasury.address) {
@@ -175,21 +191,6 @@ task("setup", "Set up")
     }
 
     console.log("Done!");
-  });
-
-task("turn-on", "Turn everything on")
-  .addParam("address", "Main GuilderFi contract address")
-  .setAction(async (taskArgs, hre) => {
-    // get treasury signer
-    const treasury = (await hre.ethers.getSigners())[1];
-
-    const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
-
-    // get deployed token
-    const token = await Token.attach(taskArgs.address);
-
-    const tx = await token.connect(treasury).launchToken();
-    await tx.wait();
   });
 
 task("verify-all", "Verify all contracts on etherscan")
