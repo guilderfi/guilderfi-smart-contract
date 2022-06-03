@@ -50,13 +50,13 @@ const deploy = async ({ ethers, deployer, treasury }) => {
   tx = await token.connect(treasury).setAutoSwap(true);
   await tx.wait();
 
-  tx = await token.connect(treasury).setAutoLiquidity(false);
+  tx = await token.connect(treasury).setAutoLiquidity(true);
   await tx.wait();
 
   tx = await token.connect(treasury).setAutoRebase(true);
   await tx.wait();
 
-  tx = await token.connect(treasury).setAutoLrf(false);
+  tx = await token.connect(treasury).setAutoLrf(true);
   await tx.wait();
 
   tx = await token.connect(treasury).setAutoSafeExit(true);

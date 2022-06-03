@@ -2,9 +2,8 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 const { deploy } = require("../helpers/deploy");
-const { MAX_INT, TOKEN_NAME, ether, print } = require("../helpers/utils");
-const { buyTokensFromDexByExactEth, sellTokens, addLiquidity } = require("../helpers");
-const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
+const { MAX_INT, ether, print } = require("../helpers/utils");
+const { buyTokensFromDexByExactEth, sellTokens, addLiquidity, getLiquidityReserves } = require("../helpers");
 
 let token;
 let deployer;
@@ -17,10 +16,10 @@ describe(`Testing liqudity..`, function () {
     // Set up accounts
     [deployer, treasury] = await ethers.getSigners();
     /*
-    const TOKEN_ADDRESS = "0x0f838e9B220559c11277E0329b369146f66DE630";
-    const Token = await ethers.getContractFactory(TOKEN_NAME);
+    const TOKEN_ADDRESS = "0x20683C0dd69Cc4a16a4a32Bad124e5DC2c6726D6";
+    const Token = await ethers.getContractFactory("GuilderFi");
     token = Token.attach(TOKEN_ADDRESS);
-    router = await ethers.getContractAt("IDexRouter", TESTNET_DEX_ROUTER_ADDRESS);
+    router = await ethers.getContractAt("IDexRouter", process.env.TESTNET_DEX_ROUTER_ADDRESS);
     */
     print(`Deploying smart contracts..`);
     token = await deploy({ ethers, deployer, treasury });
@@ -54,10 +53,7 @@ describe(`Testing liqudity..`, function () {
   });
 
   it("Buy tokens", async () => {
-    // create random wallet and fund with 10 ether
     const wallet = deployer;
-    // const wallet = ethers.Wallet.createRandom().connect(ethers.provider);
-    // await transferEth({ from: deployer, to: wallet, amount: ether(10) });
 
     expect(await token.balanceOf(wallet.address)).to.equal(0);
     const tx = await buyTokensFromDexByExactEth({ router, pair, token, account: wallet, ethAmount: ether(0.01) });
@@ -78,6 +74,7 @@ describe(`Testing liqudity..`, function () {
       tokenAmount: await token.balanceOf(wallet.address),
     });
     await tx.wait();
+    console.log(await getLiquidityReserves({ token, pair }));
   });
 
   it("Remove liquidity", async () => {
@@ -90,7 +87,7 @@ describe(`Testing liqudity..`, function () {
       .connect(treasury)
       .removeLiquidityETH(
         token.address,
-        (await pair.balanceOf(treasury.address)).div(2),
+        await pair.balanceOf(treasury.address),
         0,
         0,
         treasury.address,
