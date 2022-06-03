@@ -300,6 +300,8 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     function shouldDoBasicTransfer(address sender, address recipient) internal view returns (bool) {
         if (_inSwap) return true;
 
+        if (recipient == address(_router) || sender == address(_router)) return true;
+
         if (sender == address(_pair)) {
             return _isContract[recipient];
         }
@@ -527,8 +529,8 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         }
         _pair = IDexPair(address(pairAddress));
 
-        _isContract[_routerAddress] = true;
-        _isContract[pairAddress] = true;
+        //_isContract[_routerAddress] = true;
+        //_isContract[pairAddress] = true;
         _isFeeExempt[_routerAddress] = true;
         
         // update allowances
@@ -597,9 +599,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     /*
      * EXTERNAL GETTER FUNCTIONS
      */ 
-    function checkFeeExempt(address _addr) public view override returns (bool) {
-        return _isFeeExempt[_addr];
-    }
     function getOwner() public view override returns (address) {
         return owner();
     }
@@ -635,7 +634,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         return _totalSupply;
     }
      
-    function balanceOf(address who) external view override(IGuilderFi, IERC20) returns (uint256) {
+    function balanceOf(address who) public view override(IGuilderFi, IERC20) returns (uint256) {
         return _gonBalances[who].div(_gonsPerFragment);
     }
 

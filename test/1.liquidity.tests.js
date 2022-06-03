@@ -2,8 +2,9 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 const { deploy } = require("../helpers/deploy");
-const { MAX_INT, ether, print } = require("../helpers/utils");
+const { MAX_INT, TOKEN_NAME, ether, print } = require("../helpers/utils");
 const { buyTokensFromDexByExactEth, sellTokens, addLiquidity } = require("../helpers");
+const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
 
 let token;
 let deployer;
@@ -15,17 +16,11 @@ describe(`Testing liqudity..`, function () {
   before(async function () {
     // Set up accounts
     [deployer, treasury] = await ethers.getSigners();
-
     /*
-    const TOKEN_ADDRESS = "0xf7d9a415A7e379B3be6422321a3eE6AE44098476";
+    const TOKEN_ADDRESS = "0x0f838e9B220559c11277E0329b369146f66DE630";
     const Token = await ethers.getContractFactory(TOKEN_NAME);
     token = Token.attach(TOKEN_ADDRESS);
     router = await ethers.getContractAt("IDexRouter", TESTNET_DEX_ROUTER_ADDRESS);
-
-    if ((await token.getOwner()) !== treasury.address) {
-      const tx = await token.connect(deployer).setTreasury(treasury.address);
-      await tx.wait();
-    }
     */
     print(`Deploying smart contracts..`);
     token = await deploy({ ethers, deployer, treasury });
@@ -93,9 +88,9 @@ describe(`Testing liqudity..`, function () {
 
     tx = await router
       .connect(treasury)
-      .removeLiquidityETHSupportingFeeOnTransferTokens(
+      .removeLiquidityETH(
         token.address,
-        await pair.balanceOf(treasury.address),
+        (await pair.balanceOf(treasury.address)).div(2),
         0,
         0,
         treasury.address,

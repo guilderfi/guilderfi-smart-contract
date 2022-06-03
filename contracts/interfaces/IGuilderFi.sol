@@ -55,12 +55,10 @@ interface IGuilderFi {
     // Address settings
     function setFeeExempt(address _address, bool _flag) external;
     function setBlacklist(address _address, bool _flag) external;
-    // function allowPreSaleTransfer(address _addr, bool _flag) external;
 
     // Read only functions
     // function isPreSale() external view returns (bool);
     function hasLaunched() external view returns (bool);
-    function checkFeeExempt(address _addr) external view returns (bool);
 
     // Addresses
     function getOwner() external view returns (address);
