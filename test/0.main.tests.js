@@ -1,6 +1,8 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
+const { deploy } = require("../helpers/deploy");
+const { MAX_INT, TOKEN_NAME, ether, print, createWallet } = require("../helpers/utils");
 const {
   transferTokens,
   buyTokensFromDex,
@@ -9,78 +11,41 @@ const {
   getLiquidityReserves,
   calculateEthToReceive,
   calculateLPtokens,
-  ether,
-  print,
-  MAX_INT,
+  transferEth,
 } = require("../helpers");
 
-const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
-const TOKEN_NAME = "GuilderFi";
 const DEAD = ethers.utils.getAddress("0x000000000000000000000000000000000000dEaD");
 
-let deployer;
 let token;
+let deployer;
+let treasury;
 let router;
 let pair;
-let treasury;
 let lrf;
 let safeExit;
-let account1;
-let account2;
-let account3;
+
+const account1 = createWallet(ethers);
+const account2 = createWallet(ethers);
+const account3 = createWallet(ethers);
 
 describe(`Testing ${TOKEN_NAME}..`, function () {
   before(async function () {
     // Set up accounts
-    [deployer, treasury, account1, account2, account3] = await ethers.getSigners();
+    [deployer, treasury] = await ethers.getSigners();
 
     print(`Deploying smart contracts..`);
-
-    const Token = await ethers.getContractFactory(TOKEN_NAME);
-    const SwapEngine = await ethers.getContractFactory("SwapEngine");
-    const AutoLiquidityEngine = await ethers.getContractFactory("AutoLiquidityEngine");
-    const LiquidityReliefFund = await ethers.getContractFactory("LiquidityReliefFund");
-    const SafeExitFund = await ethers.getContractFactory("SafeExitFund");
-    const PreSale = await ethers.getContractFactory("PreSale");
-
-    // Deploy contract
-    token = await Token.deploy();
-    global.token = token;
-    await token.deployed();
-
-    // create swap engine
-    const _swapEngine = await SwapEngine.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setSwapEngine(_swapEngine.address);
-
-    // create auto liquidity engine
-    const _autoLiquidityEngine = await AutoLiquidityEngine.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setLiquidityEngine(_autoLiquidityEngine.address);
-
-    // create LRF
-    const _lrf = await LiquidityReliefFund.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setLrf(_lrf.address);
-
-    // create safe exit fund
-    const _safeExit = await SafeExitFund.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setSafeExitFund(_safeExit.address);
-
-    // create pre-sale
-    const _preSale = await PreSale.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setPreSaleEngine(_preSale.address);
-
-    // set up dex
-    await token.connect(deployer).setDex(TESTNET_DEX_ROUTER_ADDRESS);
-
-    // set up treasury
-    await token.connect(deployer).setTreasury(treasury.address);
-
-    // Set dex variables
-    router = await ethers.getContractAt("IDexRouter", await token.getRouter());
-    pair = await ethers.getContractAt("IDexPair", await token.getPair());
+    token = await deploy({ ethers, deployer, treasury });
 
     // contracts
+    router = await ethers.getContractAt("IDexRouter", await token.getRouter());
+    pair = await ethers.getContractAt("IDexPair", await token.getPair());
     lrf = await ethers.getContractAt("LiquidityReliefFund", await token.getLrfAddress());
     safeExit = await ethers.getContractAt("SafeExitFund", await token.getSafeExitFundAddress());
+
+    // transfer some eth to test accounts
+    await transferEth({ from: deployer, to: account1, amount: ether(10) });
+    await transferEth({ from: deployer, to: account2, amount: ether(10) });
+    await transferEth({ from: deployer, to: account3, amount: ether(10) });
   });
 
   it("Should mint 100m tokens", async function () {
@@ -95,7 +60,6 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
   it("Treasury should be able to add initial liquidity to liquidity pool", async function () {
     // Approve DEX to transfer
-    // await token.connect(treasury).allowPreSaleTransfer(router.address, true);
     await token.connect(treasury).approve(router.address, MAX_INT);
 
     // Add 10 million tokens + 10 BNB into liquidity
@@ -127,29 +91,6 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     // no fees should be collected
     expect(await token.balanceOf(account1.address)).to.equal(ether(1000));
   });
-
-  /*
-  it("Should block other accounts from transacting until trading is open", async function () {
-    try {
-      await transferTokens({ token, from: account1, to: account2, amount: ether(100) });
-    } catch (error) {
-      expect(error.message).to.contain("Trading not open yet");
-    }
-
-    expect(await token.balanceOf(account1.address)).to.equal(ether(1000));
-    expect(await token.balanceOf(account2.address)).to.equal(ether(0));
-
-    // account1 buys 1000 tokens
-    try {
-      await buyTokensFromDex({ router, pair, token, account: account1, tokenAmount: ether(1000) });
-    } catch (error) {
-      expect(error.message).to.contain("TRANSFER_FAILED");
-    }
-
-    expect(await token.balanceOf(account1.address)).to.equal(ether(1000));
-    expect(await token.balanceOf(account2.address)).to.equal(ether(0));
-  });
-  */
 
   it("Should open up trading and allow accounts to transact", async function () {
     // await token.connect(treasury).openTrade();

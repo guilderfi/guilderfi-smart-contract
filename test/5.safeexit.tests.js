@@ -1,84 +1,37 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-const {
-  ether,
-  print,
-  transferTokens,
-  transferEth,
-  buyTokensFromDexByExactEth,
-  addLiquidity,
-  gasUsed,
-  MAX_INT,
-  getLiquidityReserves,
-} = require("../helpers");
+const { deploy } = require("../helpers/deploy");
+const { MAX_INT, ether, print, createWallet } = require("../helpers/utils");
+const { transferTokens, transferEth, buyTokensFromDexByExactEth, addLiquidity, gasUsed, getLiquidityReserves } = require("../helpers");
 const { tier1, tier2, tier3 } = require("../helpers/data");
 
-const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
-const TOKEN_NAME = "GuilderFi";
-
 let token;
+let deployer;
+let treasury;
 let router;
 let pair;
-let deployer;
 let preSale;
 let safeExit;
-let treasury;
-let account1;
-let account2;
-let account3;
-let account6;
+
+const account1 = createWallet(ethers);
+const account2 = createWallet(ethers);
+const account3 = createWallet(ethers);
+const account6 = createWallet(ethers);
 
 describe(`Testing safe exit..`, function () {
   before(async function () {
     // Set up accounts
-    [deployer, treasury, account1, account2, account3, , , account6] = await ethers.getSigners();
+    [deployer, treasury] = await ethers.getSigners();
 
     print(`Deploying smart contracts..`);
-
-    const Token = await ethers.getContractFactory(TOKEN_NAME);
-    const SwapEngine = await ethers.getContractFactory("SwapEngine");
-    const AutoLiquidityEngine = await ethers.getContractFactory("AutoLiquidityEngine");
-    const LiquidityReliefFund = await ethers.getContractFactory("LiquidityReliefFund");
-    const SafeExitFund = await ethers.getContractFactory("SafeExitFund");
-    const PreSale = await ethers.getContractFactory("PreSale");
-
-    // Deploy contract
-    token = await Token.deploy();
-    global.token = token;
-    await token.deployed();
-
-    // create swap engine
-    const _swapEngine = await SwapEngine.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setSwapEngine(_swapEngine.address);
-
-    // create auto liquidity engine
-    const _autoLiquidityEngine = await AutoLiquidityEngine.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setLiquidityEngine(_autoLiquidityEngine.address);
-
-    // create LRF
-    const _lrf = await LiquidityReliefFund.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setLrf(_lrf.address);
-
-    // create safe exit fund
-    const _safeExit = await SafeExitFund.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setSafeExitFund(_safeExit.address);
-
-    // create pre-sale
-    const _preSale = await PreSale.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setPreSaleEngine(_preSale.address);
-
-    // set up dex
-    await token.connect(deployer).setDex(TESTNET_DEX_ROUTER_ADDRESS);
-
-    // set up treasury
-    await token.connect(deployer).setTreasury(treasury.address);
+    token = await deploy({ ethers, deployer, treasury });
 
     // contracts
-    preSale = await ethers.getContractAt("PreSale", await token.getPreSaleAddress());
-    safeExit = await ethers.getContractAt("SafeExitFund", await token.getSafeExitFundAddress());
     router = await ethers.getContractAt("IDexRouter", await token.getRouter());
     pair = await ethers.getContractAt("IDexPair", await token.getPair());
+    preSale = await ethers.getContractAt("PreSale", await token.getPreSaleAddress());
+    safeExit = await ethers.getContractAt("SafeExitFund", await token.getSafeExitFundAddress());
 
     // send 27m tokens to presale contract
     await transferTokens({ token, from: treasury, to: preSale, amount: ether(27000000) });
@@ -86,8 +39,11 @@ describe(`Testing safe exit..`, function () {
     // add some eth to safe exit fund
     await transferEth({ from: treasury, to: safeExit, amount: ether(10) });
 
-    // open trading
-    // await token.connect(treasury).openTrade();
+    // transfer some eth to test accounts
+    await transferEth({ from: deployer, to: account1, amount: ether(150) });
+    await transferEth({ from: deployer, to: account2, amount: ether(150) });
+    await transferEth({ from: deployer, to: account3, amount: ether(150) });
+    await transferEth({ from: deployer, to: account6, amount: ether(150) });
 
     // Approve DEX to transfer
     await token.connect(treasury).approve(router.address, MAX_INT);

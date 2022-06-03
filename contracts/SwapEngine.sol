@@ -16,7 +16,7 @@ contract SwapEngine is ISwapEngine {
     using SafeMath for uint256;
 
     // GuilderFi token contract address
-    IGuilderFi internal _token;
+    address internal _token;
  
     // enabled flag
     bool internal _isEnabled = true;
@@ -37,19 +37,19 @@ contract SwapEngine is ISwapEngine {
     }
 
     modifier onlyToken() {
-        require(msg.sender == address(_token), "Sender is not token contract"); _;
+        require(msg.sender == _token, "Sender is not token contract"); _;
     }
 
     modifier onlyTokenOwner() {
-        require(msg.sender == address(_token.getOwner()), "Sender is not token owner"); _;
+        require(msg.sender == IGuilderFi(_token).getOwner(), "Sender is not token owner"); _;
     }
 
     modifier onlyTokenOrTokenOwner() {
-        require(msg.sender == address(_token.getOwner()) || msg.sender == address(_token), "Sender is not contract or owner"); _;
+        require(msg.sender == IGuilderFi(_token).getOwner() || msg.sender == _token, "Sender is not contract or owner"); _;
     }
 
     constructor (address tokenAddress) {
-        _token = IGuilderFi(tokenAddress);
+        _token = tokenAddress;
     }
 
     // External execute function
@@ -74,7 +74,7 @@ contract SwapEngine is ISwapEngine {
 
         IDexRouter _router = getRouter();
         uint256 totalGonFeesCollected = _treasuryFeesCollected.add(_lrfFeesCollected).add(_safeExitFeesCollected);
-        uint256 amountToSwap = _token.balanceOf(address(this));
+        uint256 amountToSwap = IGuilderFi(_token).balanceOf(address(this));
 
         if (amountToSwap == 0) {
             return;
@@ -83,7 +83,7 @@ contract SwapEngine is ISwapEngine {
         uint256 balanceBefore = address(this).balance;
 
         address[] memory path = new address[](2);
-        path[0] = address(_token);
+        path[0] = _token;
         path[1] = _router.WETH();
 
         // swap all tokens in contract for ETH
@@ -107,21 +107,21 @@ contract SwapEngine is ISwapEngine {
         _safeExitFeesCollected = 0;
         
         // send eth to treasury
-        (bool success, ) = payable(_token.getTreasuryAddress()).call{ value: treasuryETH }("");
+        (bool success, ) = payable(IGuilderFi(_token).getTreasuryAddress()).call{ value: treasuryETH }("");
 
         // send eth to lrf
-        (success, ) = payable(_token.getLrfAddress()).call{ value: lrfETH }("");
+        (success, ) = payable(IGuilderFi(_token).getLrfAddress()).call{ value: lrfETH }("");
 
         // send eth to safe exit fund
-        (success, ) = payable(_token.getSafeExitFundAddress()).call{ value: safeExitETH }("");
+        (success, ) = payable(IGuilderFi(_token).getSafeExitFundAddress()).call{ value: safeExitETH }("");
     }
 
     function getRouter() internal view returns (IDexRouter) {
-        return IDexRouter(_token.getRouter());
+        return IDexRouter(IGuilderFi(_token).getRouter());
     }
 
     function getPair() internal view returns (IDexPair) {
-        return IDexPair(_token.getPair());
+        return IDexPair(IGuilderFi(_token).getPair());
     }
 
     function isEnabled() public view override returns (bool) {

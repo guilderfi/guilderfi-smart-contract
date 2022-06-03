@@ -112,6 +112,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     // DATA
     mapping(address => bool) private _isFeeExempt;
+    mapping(address => bool) private _isContract;
     mapping(address => uint256) private _gonBalances;
     mapping(address => mapping(address => uint256)) private _allowedFragments;
     mapping(address => bool) public blacklist;
@@ -182,6 +183,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
             _allowedFragments[_address][address(_router)] = type(uint256).max;
         }
 
+        _isContract[_address] = true;
         _isFeeExempt[_address] = true;
     }
 
@@ -261,7 +263,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         }
     }
 
-    function pendingRebases() public view override returns (uint256) {
+    function pendingRebases() internal view returns (uint256) {
         uint256 timeSinceLastRebase = block.timestamp - lastRebaseTime;
         return timeSinceLastRebase.div(REBASE_FREQUENCY);
     }
@@ -295,15 +297,25 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         return true;
     }
 
-    function inSwap() internal view returns (bool) {
-        return swapEngine.inSwap() || autoLiquidityEngine.inSwap() || lrf.inSwap();
+    function shouldDoBasicTransfer(address sender, address recipient) internal view returns (bool) {
+        if (_inSwap) return true;
+
+        if (sender == address(_pair)) {
+            return _isContract[recipient];
+        }
+        
+        if (recipient == address(_pair)) {
+            return _isContract[sender];
+        }
+        
+        return false;
     }
 
     function _transferFrom(address sender, address recipient, uint256 amount) internal returns (bool) {
     
         require(!blacklist[sender] && !blacklist[recipient], "Address blacklisted");
 
-        if (inSwap()) {
+        if (shouldDoBasicTransfer(sender, recipient)) {
             return _basicTransfer(sender, recipient, amount);
         }
         
@@ -327,7 +339,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         return true;
     }
 
-    function preTransactionActions(address sender, address recipient, uint256 amount) internal {
+    function preTransactionActions(address sender, address recipient, uint256 amount) internal swapping {
 
         if (shouldExecuteSafeExit()) {
             safeExitFund.execute(sender, recipient, amount);
@@ -515,8 +527,10 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         }
         _pair = IDexPair(address(pairAddress));
 
+        _isContract[_routerAddress] = true;
+        _isContract[pairAddress] = true;
         _isFeeExempt[_routerAddress] = true;
-
+        
         // update allowances
         _allowedFragments[address(this)][_routerAddress] = type(uint256).max;
         _allowedFragments[address(swapEngine)][_routerAddress] = type(uint256).max;
@@ -583,9 +597,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     /*
      * EXTERNAL GETTER FUNCTIONS
      */ 
-    function getCirculatingSupply() public view override returns (uint256) {
-        return (TOTAL_GONS.sub(_gonBalances[DEAD]).sub(_gonBalances[ZERO])).div(_gonsPerFragment);
-    }
     function checkFeeExempt(address _addr) public view override returns (bool) {
         return _isFeeExempt[_addr];
     }
@@ -606,9 +617,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     }
     function getSafeExitFundAddress() public view override returns (address) {
         return address(safeExitFund);
-    }
-    function getBurnAddress() public view override returns (address) {
-        return _burnAddress;
     }
     function getPreSaleAddress() public view override returns (address) {
         return address(preSale);

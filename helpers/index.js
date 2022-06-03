@@ -1,23 +1,6 @@
 const { ethers } = require("hardhat");
 const { BigNumber } = require("ethers");
-const clc = require("cli-color");
-
-const DECIMALS = 18;
-const MAX_INT = ethers.constants.MaxUint256;
-
-const addZeroes = (num, zeroes) => {
-  return BigNumber.from(num).mul(BigNumber.from(10).pow(zeroes));
-};
-
-const ether = (num) => {
-  const numString = num.toString();
-  const decimals = numString.indexOf(".") > 0 ? numString.split(".")[1].length : 0;
-  return BigNumber.from(numString.replace(".", "")).mul(BigNumber.from(10).pow(DECIMALS - decimals));
-};
-
-const print = (msg) => {
-  console.log(clc.xterm(8)("      " + msg));
-};
+const { DECIMALS, MAX_INT, ether, print } = require("./utils");
 
 // calculate gas used in a transaction
 const gasUsed = async (tx) => {
@@ -146,6 +129,13 @@ const calculateLPtokens = ({ tokenAmount, ethAmount }) => {
   return sqrt(tokenAmount.mul(ethAmount)).sub(MINIMUM_LIQUIDITY);
 };
 
+const getPendingRebases = async ({ ethers, token }) => {
+  const REBASE_FREQUENCY = 720;
+  const blockTime = (await ethers.provider.getBlock("latest")).timestamp;
+  const timeSinceLastRebase = blockTime - (await token.lastRebaseTime()).toNumber();
+  return Math.floor(timeSinceLastRebase / REBASE_FREQUENCY);
+};
+
 const printStatus = async ({ token, treasury, ethers }) => {
   const lrf = await ethers.getContractAt("LiquidityReliefFund", await token.getLrfAddress());
   const safeExit = await ethers.getContractAt("SafeExitFund", await token.getSafeExitFundAddress());
@@ -189,7 +179,6 @@ module.exports = {
   DECIMALS,
   MAX_INT,
   ether,
-  addZeroes,
   print,
   transferTokens,
   transferEth,
@@ -202,4 +191,5 @@ module.exports = {
   calculateLPtokens,
   printStatus,
   gasUsed,
+  getPendingRebases,
 };

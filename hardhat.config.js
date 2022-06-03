@@ -1,6 +1,6 @@
 const { task } = require("hardhat/config");
 const { verify } = require("./helpers/verify");
-const { accounts } = require("./helpers/accounts");
+const { getAccounts } = require("./helpers/accounts");
 
 require("dotenv").config();
 require("@nomiclabs/hardhat-etherscan");
@@ -9,16 +9,9 @@ require("hardhat-gas-reporter");
 require("solidity-coverage");
 require("hardhat-contract-sizer");
 
-const {
-  TESTNET_URL,
-  TESTNET_CHAIN_ID,
-  TESTNET_DEX_ROUTER_ADDRESS,
-  MAINNET_URL,
-  MAINNET_CHAIN_ID,
-  PRIVATE_KEY,
-  ETHERSCAN_API_KEY,
-  REPORT_GAS,
-} = process.env;
+const accounts = getAccounts();
+const { TESTNET_URL, TESTNET_CHAIN_ID, TESTNET_DEX_ROUTER_ADDRESS, MAINNET_URL, MAINNET_CHAIN_ID, ETHERSCAN_API_KEY, REPORT_GAS } =
+  process.env;
 const TOKEN_NAME = "GuilderFi";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -35,12 +28,6 @@ task("deploy", "Deploys the contract to the blockchain", async (taskArgs, hre) =
   await token.deployed();
   console.log("Token deployed to contract address: ", token.address);
   return token;
-});
-
-task("deploy-all", "Deploys the contract to the blockchain", async (taskArgs, hre) => {
-  const token = await hre.run("deploy");
-  await hre.run("setup", { address: token.address });
-  await hre.run("approve", { address: token.address });
 });
 
 task("approve", "Approve for trading")
@@ -74,17 +61,30 @@ task("disable", "Disable swapping")
     const treasury = (await hre.ethers.getSigners())[1];
 
     console.log("Disabling features...");
-    // await token.connect(treasury).setAutoSwap(false);
-    // await token.connect(treasury).setAutoLiquidity(false);
-    // await token.connect(treasury).setAutoLrf(false);
+    await token.connect(treasury).setAutoSwap(false);
+    await token.connect(treasury).setAutoLiquidity(false);
+    await token.connect(treasury).setAutoLrf(false);
     await token.connect(treasury).setAutoSafeExit(false);
     console.log("Done!");
   });
+
+task("deploy-all", "Deploys the contract to the blockchain", async (taskArgs, hre) => {
+  const token = await hre.run("deploy");
+  await hre.run("setup", { address: token.address });
+  await hre.run("approve", { address: token.address });
+});
 
 task("deploy-and-verify", "Deploys the contract to the blockchain", async (taskArgs, hre) => {
   const token = await hre.run("deploy");
   await hre.run("setup", { address: token.address });
   await hre.run("verify-all", { address: token.address });
+});
+
+task("deploy-and-approve", "Deploys the contract to the blockchain", async (taskArgs, hre) => {
+  const token = await hre.run("deploy");
+  await hre.run("setup", { address: token.address });
+  await hre.run("verify-all", { address: token.address });
+  await hre.run("approve", { address: token.address });
 });
 
 task("presale", "Run presale stuff", async (taskArgs, hre) => {
@@ -99,31 +99,31 @@ task("presale", "Run presale stuff", async (taskArgs, hre) => {
   console.log("Pre sale - public sale is open: ", await preSale.isPublicSaleOpen());
 });
 
-const deploySubContract = async ({ token, deployer, hre, contractName, getAddressFunc, setAddressFunc }) => {
-  const Contract = await hre.ethers.getContractFactory(contractName);
-
-  if ((await token[getAddressFunc]()) === ZERO_ADDRESS) {
-    console.log(`Deploying ${contractName}...`);
-
-    const contract = await Contract.connect(deployer).deploy(token.address);
-    await contract.deployed();
-
-    const tx = await token.connect(deployer)[setAddressFunc](contract.address);
-    await tx.wait();
-  }
-  console.log(`${contractName} deployed at: ${await token[getAddressFunc]()}`);
-};
-
-task("setup", "Set up")
-  .addParam("address", "Main GuilderFi contract address")
+task("setup", "Set up sub-contracts and DEX")
+  .addParam("address", "Token contract address")
   .setAction(async (taskArgs, hre) => {
+    // function to deploy sub contracts
+    const deploySubContract = async ({ token, deployer, hre, contractName, getAddressFunc, setAddressFunc }) => {
+      const Contract = await hre.ethers.getContractFactory(contractName);
+
+      if ((await token[getAddressFunc]()) === ZERO_ADDRESS) {
+        console.log(`Deploying ${contractName}...`);
+
+        const contract = await Contract.connect(deployer).deploy(token.address);
+        await contract.deployed();
+
+        const tx = await token.connect(deployer)[setAddressFunc](contract.address);
+        await tx.wait();
+      }
+      console.log(`${contractName} deployed at: ${await token[getAddressFunc]()}`);
+    };
+
     // get treasury signer
     const deployer = (await hre.ethers.getSigners())[0];
     const treasury = (await hre.ethers.getSigners())[1];
 
-    const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
-
     // get deployed token
+    const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
     const token = await Token.attach(taskArgs.address);
 
     // set up dex
@@ -194,8 +194,9 @@ task("setup", "Set up")
   });
 
 task("verify-all", "Verify all contracts on etherscan")
-  .addParam("address", "Main GuilderFi contract address")
+  .addParam("address", "Token contract address")
   .setAction(async (taskArgs, hre) => {
+    // get deployed token
     const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
     const token = await Token.attach(taskArgs.address);
 
@@ -240,12 +241,12 @@ module.exports = {
     testnet: {
       url: TESTNET_URL,
       chainId: parseInt(TESTNET_CHAIN_ID),
-      accounts: accounts.map((x) => x.privateKey), // accounts: PRIVATE_KEY !== undefined ? [PRIVATE_KEY] : [],
+      accounts: accounts.map((x) => x.privateKey),
     },
     mainnet: {
       url: MAINNET_URL,
       chainId: parseInt(MAINNET_CHAIN_ID),
-      accounts: PRIVATE_KEY !== undefined ? [PRIVATE_KEY] : [],
+      accounts: accounts.map((x) => x.privateKey),
     },
   },
   gasReporter: {

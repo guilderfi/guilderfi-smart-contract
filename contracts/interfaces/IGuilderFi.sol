@@ -24,7 +24,6 @@ interface IGuilderFi {
     // Rebase functions
     function rebase() external;
     function getRebaseRate() external view returns (uint256);
-    function pendingRebases() external view returns (uint256);
     function maxRebaseBatchSize() external view returns (uint256);
     
     // Transfer
@@ -61,7 +60,6 @@ interface IGuilderFi {
     // Read only functions
     // function isPreSale() external view returns (bool);
     function hasLaunched() external view returns (bool);
-    function getCirculatingSupply() external view returns (uint256);
     function checkFeeExempt(address _addr) external view returns (bool);
 
     // Addresses
@@ -72,7 +70,6 @@ interface IGuilderFi {
     function getAutoLiquidityAddress() external view returns (address);
     function getSafeExitFundAddress() external view returns (address);
     function getPreSaleAddress() external view returns (address);
-    function getBurnAddress() external view returns (address);
 
     // Setup functions
     function setSwapEngine(address _address) external;

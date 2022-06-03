@@ -1,23 +1,23 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-const { ether, print, transferTokens, calculateLPtokens, getLiquidityReserves, gasUsed } = require("../helpers");
-
-const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
-const TOKEN_NAME = "GuilderFi";
+const { deploy } = require("../helpers/deploy");
+const { ether, print, createWallet } = require("../helpers/utils");
+const { transferTokens, calculateLPtokens, getLiquidityReserves, gasUsed, transferEth } = require("../helpers");
 
 let token;
-let pair;
 let deployer;
 let treasury;
-let account1;
-let account2;
-let account3;
-let account4;
-let account5;
-let account6;
-let account7;
+let pair;
 let preSale;
+
+const account1 = createWallet(ethers);
+const account2 = createWallet(ethers);
+const account3 = createWallet(ethers);
+const account4 = createWallet(ethers);
+const account5 = createWallet(ethers);
+const account6 = createWallet(ethers);
+const account7 = createWallet(ethers);
 
 const { tier1, tier2, tier3, publicTier } = require("../helpers/data");
 
@@ -48,54 +48,26 @@ const testPurchase = async ({ account, ethAmount, expectedTokens }) => {
 describe(`Testing pre-sale..`, function () {
   before(async function () {
     // Set up accounts
-    [deployer, treasury, account1, account2, account3, account4, account5, account6, account7] = await ethers.getSigners();
+    [deployer, treasury] = await ethers.getSigners();
 
     print(`Deploying smart contracts..`);
-
-    const Token = await ethers.getContractFactory(TOKEN_NAME);
-    const SwapEngine = await ethers.getContractFactory("SwapEngine");
-    const AutoLiquidityEngine = await ethers.getContractFactory("AutoLiquidityEngine");
-    const LiquidityReliefFund = await ethers.getContractFactory("LiquidityReliefFund");
-    const SafeExitFund = await ethers.getContractFactory("SafeExitFund");
-    const PreSale = await ethers.getContractFactory("PreSale");
-
-    // Deploy contract
-    token = await Token.deploy();
-    global.token = token;
-    await token.deployed();
-
-    // create swap engine
-    const _swapEngine = await SwapEngine.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setSwapEngine(_swapEngine.address);
-
-    // create auto liquidity engine
-    const _autoLiquidityEngine = await AutoLiquidityEngine.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setLiquidityEngine(_autoLiquidityEngine.address);
-
-    // create LRF
-    const _lrf = await LiquidityReliefFund.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setLrf(_lrf.address);
-
-    // create safe exit fund
-    const _safeExit = await SafeExitFund.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setSafeExitFund(_safeExit.address);
-
-    // create pre-sale
-    const _preSale = await PreSale.connect(deployer).deploy(token.address);
-    await token.connect(deployer).setPreSaleEngine(_preSale.address);
-
-    // set up dex
-    await token.connect(deployer).setDex(TESTNET_DEX_ROUTER_ADDRESS);
-
-    // set up treasury
-    await token.connect(deployer).setTreasury(treasury.address);
+    token = await deploy({ ethers, deployer, treasury });
 
     // contracts
-    preSale = await ethers.getContractAt("PreSale", await token.getPreSaleAddress());
     pair = await ethers.getContractAt("IDexPair", await token.getPair());
+    preSale = await ethers.getContractAt("PreSale", await token.getPreSaleAddress());
 
     // send 27m tokens to presale contract
     await transferTokens({ token, from: treasury, to: preSale, amount: ether(50000000) });
+
+    // transfer some eth to test accounts
+    await transferEth({ from: deployer, to: account1, amount: ether(150) });
+    await transferEth({ from: deployer, to: account2, amount: ether(150) });
+    await transferEth({ from: deployer, to: account3, amount: ether(150) });
+    await transferEth({ from: deployer, to: account4, amount: ether(150) });
+    await transferEth({ from: deployer, to: account5, amount: ether(150) });
+    await transferEth({ from: deployer, to: account6, amount: ether(150) });
+    await transferEth({ from: deployer, to: account7, amount: ether(150) });
   });
 
   it("Should prevent purchasing until public sale is enabled", async function () {
