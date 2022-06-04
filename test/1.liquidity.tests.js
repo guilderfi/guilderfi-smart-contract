@@ -3,7 +3,7 @@ const { ethers } = require("hardhat");
 
 const { deploy } = require("../helpers/deploy");
 const { MAX_INT, ether, print } = require("../helpers/utils");
-const { buyTokensFromDexByExactEth, sellTokens, addLiquidity, getLiquidityReserves } = require("../helpers");
+const { buyTokensFromDexByExactEth, sellTokens, addLiquidity } = require("../helpers");
 
 let token;
 let deployer;
@@ -74,7 +74,6 @@ describe(`Testing liqudity..`, function () {
       tokenAmount: await token.balanceOf(wallet.address),
     });
     await tx.wait();
-    console.log(await getLiquidityReserves({ token, pair }));
   });
 
   it("Remove liquidity", async () => {
