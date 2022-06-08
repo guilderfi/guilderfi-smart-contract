@@ -16,10 +16,13 @@ describe(`Testing liqudity..`, function () {
     // Set up accounts
     [deployer, treasury] = await ethers.getSigners();
     /*
-    const TOKEN_ADDRESS = "0x20683C0dd69Cc4a16a4a32Bad124e5DC2c6726D6";
+    const TOKEN_ADDRESS = "0xaA0EEdDa8573093Fd5c6AFF7Ccb5954BCa078529";
     const Token = await ethers.getContractFactory("GuilderFi");
     token = Token.attach(TOKEN_ADDRESS);
     router = await ethers.getContractAt("IDexRouter", process.env.TESTNET_DEX_ROUTER_ADDRESS);
+
+    const factory = await ethers.getContractAt("IDexFactory", await router.factory());
+    pair = await ethers.getContractAt("IDexPair", await factory.getPair(await router.WETH(), token.address));
     */
     print(`Deploying smart contracts..`);
     token = await deploy({ ethers, deployer, treasury });

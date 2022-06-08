@@ -70,6 +70,12 @@ describe(`Testing pre-sale..`, function () {
     await transferEth({ from: deployer, to: account7, amount: ether(150) });
   });
 
+  it("Should set up custom sales tiers", async function () {
+    await preSale.connect(treasury).addCustomTier(tier1.tierId, tier1.minAmount, tier1.maxAmount, tier1.tokensPerEth);
+    await preSale.connect(treasury).addCustomTier(tier2.tierId, tier2.minAmount, tier2.maxAmount, tier2.tokensPerEth);
+    await preSale.connect(treasury).addCustomTier(tier3.tierId, tier3.minAmount, tier3.maxAmount, tier3.tokensPerEth);
+  });
+
   it("Should prevent purchasing until public sale is enabled", async function () {
     expect(await preSale.isPublicSaleOpen()).to.equal(false);
     expect(await preSale.isWhitelistSaleOpen(1)).to.equal(false);

@@ -36,9 +36,8 @@ task("approve", "Approve for trading")
     const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
     const token = await Token.attach(taskArgs.address);
 
-    // get treasury signer
-    const deployer = (await hre.ethers.getSigners())[0];
-    const treasury = (await hre.ethers.getSigners())[1];
+    // get signers
+    const [deployer, treasury] = await hre.ethers.getSigners();
 
     // approvals
     const router = await token.getRouter();
@@ -57,8 +56,8 @@ task("disable", "Disable swapping")
     const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
     const token = await Token.attach(taskArgs.address);
 
-    // get treasury signer
-    const treasury = (await hre.ethers.getSigners())[1];
+    // get signers
+    const [, treasury] = await hre.ethers.getSigners();
 
     console.log("Disabling features...");
     await token.connect(treasury).setAutoSwap(false);
@@ -71,7 +70,6 @@ task("disable", "Disable swapping")
 task("deploy-all", "Deploys the contract to the blockchain", async (taskArgs, hre) => {
   const token = await hre.run("deploy");
   await hre.run("setup", { address: token.address });
-  await hre.run("approve", { address: token.address });
 });
 
 task("deploy-and-verify", "Deploys the contract to the blockchain", async (taskArgs, hre) => {
@@ -87,16 +85,19 @@ task("deploy-and-approve", "Deploys the contract to the blockchain", async (task
   await hre.run("approve", { address: token.address });
 });
 
-task("presale", "Run presale stuff", async (taskArgs, hre) => {
-  const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
+task("presale", "Run presale").setAction(async (taskArgs, hre) => {
+  const token = await hre.run("deploy");
+  await hre.run("setup", { address: token.address });
+
   const PreSale = await hre.ethers.getContractFactory("PreSale");
+  const preSale = PreSale.attach(await token.getPreSaleAddress());
 
-  const token = await Token.deploy();
-  const preSaleAddress = await token.getPreSaleAddress();
-  const preSale = PreSale.attach(preSaleAddress);
+  // get signers
+  const [, treasury, account1] = await hre.ethers.getSigners();
 
-  console.log("Pre sale address is: ", preSaleAddress);
-  console.log("Pre sale - public sale is open: ", await preSale.isPublicSaleOpen());
+  console.log("Setting up pre-sale...");
+  await preSale.connect(treasury).addToWhitelist([account1.address], 1);
+  console.log("Done!");
 });
 
 task("setup", "Set up sub-contracts and DEX")
@@ -118,9 +119,8 @@ task("setup", "Set up sub-contracts and DEX")
       console.log(`${contractName} deployed at: ${await token[getAddressFunc]()}`);
     };
 
-    // get treasury signer
-    const deployer = (await hre.ethers.getSigners())[0];
-    const treasury = (await hre.ethers.getSigners())[1];
+    // get signers
+    const [deployer, treasury] = await hre.ethers.getSigners();
 
     // get deployed token
     const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
@@ -205,7 +205,7 @@ task("verify-all", "Verify all contracts on etherscan")
     const safeExitFundAddress = await token.getSafeExitFundAddress();
     const preSaleAddress = await token.getPreSaleAddress();
 
-    await verify(hre, token.address);
+    // await verify(hre, token.address);
     await verify(hre, lrfAddress, [token.address]);
     await verify(hre, autoLiquidityAddress, [token.address]);
     await verify(hre, safeExitFundAddress, [token.address]);
@@ -227,7 +227,7 @@ module.exports = {
     hardhat: {
       hostname: "127.0.0.1",
       port: 8545,
-      chainId: parseInt(TESTNET_CHAIN_ID),
+      chainId: 1337,
       accounts,
       forking: {
         url: TESTNET_URL,

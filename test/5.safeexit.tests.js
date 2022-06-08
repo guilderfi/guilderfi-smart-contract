@@ -45,6 +45,11 @@ describe(`Testing safe exit..`, function () {
     await transferEth({ from: deployer, to: account3, amount: ether(150) });
     await transferEth({ from: deployer, to: account6, amount: ether(150) });
 
+    // setup custom sales tiers
+    await preSale.connect(treasury).addCustomTier(tier1.tierId, tier1.minAmount, tier1.maxAmount, tier1.tokensPerEth);
+    await preSale.connect(treasury).addCustomTier(tier2.tierId, tier2.minAmount, tier2.maxAmount, tier2.tokensPerEth);
+    await preSale.connect(treasury).addCustomTier(tier3.tierId, tier3.minAmount, tier3.maxAmount, tier3.tokensPerEth);
+
     // Approve DEX to transfer
     await token.connect(treasury).approve(router.address, MAX_INT);
 

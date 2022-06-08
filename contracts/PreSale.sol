@@ -25,11 +25,7 @@ contract PreSale is IPreSale {
   }
 
   // tiers
-  Tier private tier1 = Tier(1, 37.5 ether, 125 ether, 731.71 ether);
-  Tier private tier2 = Tier(2, 7.5 ether, 25 ether, 750 ether);
-  Tier private tier3 = Tier(3, 1.5 ether, 5 ether, 769.23 ether);
-  Tier private tier4 = Tier(4, 0.3 ether, 1 ether, 789.47 ether);
-  Tier private publicSale = Tier(0, 3 ether, 10 ether, 759.49 ether);
+  Tier private publicSale = Tier(0, 0.1 ether, 10 ether, 300 ether);
   
   // tiers array
   Tier[] private tiers;
@@ -68,10 +64,7 @@ contract PreSale is IPreSale {
   constructor(address tokenAddress) {
     _token = IGuilderFi(tokenAddress);
 
-    tiers.push(tier1);
-    tiers.push(tier2);
-    tiers.push(tier3);
-    tiers.push(tier4);
+    // add sales tiers
     tiers.push(publicSale);
   }
 
