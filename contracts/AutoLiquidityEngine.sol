@@ -70,8 +70,6 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
         
         IDexRouter router = getRouter();
 
-        _inSwap = true;
-
         address[] memory path = new address[](2);
         path[0] = address(_token);
         path[1] = router.WETH();
@@ -79,6 +77,7 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
         uint256 balanceBefore = address(this).balance;
 
         // swap tokens for ETH
+        _inSwap = true;
         router.swapExactTokensForETHSupportingFeeOnTransferTokens(
             amountToSwap,
             0,
@@ -86,11 +85,13 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
             address(this),
             block.timestamp
         );
-
+        _inSwap = false;
+        
         uint256 amountETHLiquidity = address(this).balance.sub(balanceBefore);
 
         // add tokens + ETH to liquidity pool
         if (amountToLiquify > 0 && amountETHLiquidity > 0) {
+            _inSwap = true;
             router.addLiquidityETH{value: amountETHLiquidity}(
                 address(_token),
                 amountToLiquify,
@@ -99,6 +100,7 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
                 _token.getTreasuryAddress(),
                 block.timestamp
             );
+            _inSwap = false;
         }
 
         _inSwap = false;

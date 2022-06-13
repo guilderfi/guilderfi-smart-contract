@@ -82,8 +82,8 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     // SETTING FLAGS
     bool public override isAutoRebaseEnabled = true;
     bool public override isAutoSwapEnabled = true;
-    bool public override isAutoLiquidityEnabled = true;
-    bool public override isAutoLrfEnabled = true;
+    bool public override isAutoLiquidityEnabled = false;
+    bool public override isAutoLrfEnabled = false;
     bool public override isAutoSafeExitEnabled = true;
 
     // FREQUENCIES
@@ -298,8 +298,21 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     }
 
     function shouldDoBasicTransfer(address sender, address recipient) internal view returns (bool) {
-        if (_inSwap) return true;
+        if (_isContract[sender]) return true;
+        if (_isContract[recipient]) return true;
         if (sender == address(_router) || recipient == address(_router)) return true;
+        if (swapEngine.inSwap() || autoLiquidityEngine.inSwap()) return true;
+        
+        /*
+        if (sender == address(_pair)) {
+            return _isContract[recipient];
+        }
+        
+        if (recipient == address(_pair)) {
+            return _isContract[sender];
+        }
+        */
+
         return false;
     }
 
@@ -310,9 +323,10 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         if (shouldDoBasicTransfer(sender, recipient)) {
             return _basicTransfer(sender, recipient, amount);
         }
+        else {
+            preTransactionActions(sender, recipient, amount);
+        }
         
-        preTransactionActions(sender, recipient, amount);
-
         uint256 gonAmount = amount.mul(_gonsPerFragment);
         uint256 gonAmountReceived = gonAmount;
         
@@ -384,7 +398,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         // add liquidity fees to auto liquidity engine
         _gonBalances[_autoLiquidityEngineAddress] = _gonBalances[_autoLiquidityEngineAddress].add(liquidityAmount);
         emit Transfer(sender, _autoLiquidityEngineAddress, liquidityAmount.div(_gonsPerFragment));
-
+        
         // move the rest to swap engine
         _gonBalances[_swapEngineAddress] = _gonBalances[_swapEngineAddress].add(totalToSwap);
         emit Transfer(sender, _swapEngineAddress, totalToSwap.div(_gonsPerFragment));

@@ -4,6 +4,37 @@
 
 GuilderFi Smart Contract 1.0
 
+## How to build an deploy this project
+
+**1. Install dependencies**
+```
+yarn # or npm install
+```
+
+**2. Create an environment file**
+
+In the root folder of the project, copy **.env.sample** and create a new **.env** file
+
+**3. Deploy to testnet**
+```
+npx hardhat deploy-all --network testnet
+```
+This will deploy the main GuilderFi smart contract and also deploy sub contracts and link them to the main contract.
+
+## How to test this project
+
+**1. Run a local blockchain node**
+```
+npx hardhat node
+```
+This will run a local blockchain instance on your machine. It will fork the testnet chain set up in your environment file.
+
+**2. Execute automated tests**
+```
+npx hardhat test --network localhost
+```
+This will run a suite of tests in the *test* folder.
+
 ## Tokenomics:
 
 Full details available at:

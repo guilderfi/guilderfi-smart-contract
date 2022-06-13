@@ -32,6 +32,7 @@ describe(`Testing pre-sale refund scenario..`, function () {
     await transferEth({ from: deployer, to: account1, amount: ether(150) });
     await transferEth({ from: deployer, to: account2, amount: ether(150) });
 
+    // setup custom sales tiers
     await preSale.connect(treasury).addCustomTier(tier1.tierId, tier1.minAmount, tier1.maxAmount, tier1.tokensPerEth);
   });
 

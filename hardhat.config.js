@@ -205,7 +205,7 @@ task("verify-all", "Verify all contracts on etherscan")
     const safeExitFundAddress = await token.getSafeExitFundAddress();
     const preSaleAddress = await token.getPreSaleAddress();
 
-    // await verify(hre, token.address);
+    await verify(hre, token.address);
     await verify(hre, lrfAddress, [token.address]);
     await verify(hre, autoLiquidityAddress, [token.address]);
     await verify(hre, safeExitFundAddress, [token.address]);
