@@ -98,10 +98,10 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     token = IGuilderFi(tokenAddress);
 
     // Set max insurance amount of each NFT package
-    packages[1] = Package(1, 25 ether, "");
-    packages[2] = Package(2, 10 ether, "");
-    packages[3] = Package(3, 5 ether, "");
-    packages[4] = Package(4, 2 ether, "");
+    packages[1] = Package(1, 25 ether, "", "");
+    packages[2] = Package(2, 10 ether, "", "");
+    packages[3] = Package(3, 5 ether, "", "");
+    packages[4] = Package(4, 2 ether, "", "");
 
     // Set % chances of receiving each NFT package
     packageChances.push(PackageChancePercentage(1, 25));
@@ -225,7 +225,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   function getPackage(uint256 _nftId) public override view nftsRevealed returns (
     uint256 packageId,
     uint256 maxInsuranceAmount,
-    string memory metadataUriLive
+    string memory metadataUriLive,
     string memory metadataUriReady
   ) {
     // using timestamp salt & random seed & nftId we get a pseudo random number between 0 and 99
@@ -295,7 +295,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         }
         else {
           // if not override, use package data
-          (, uint256 maxInsuranceAmount, ) = getPackage(nftId);
+          (, uint256 maxInsuranceAmount,, ) = getPackage(nftId);
           totalInsurance = totalInsurance.add(maxInsuranceAmount);
         }
       }

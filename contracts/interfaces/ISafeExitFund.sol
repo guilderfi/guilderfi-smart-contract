@@ -25,7 +25,8 @@ interface ISafeExitFund {
   function getPackage(uint256 _nftId) external view returns (
     uint256 packageId,
     uint256 maxInsuranceAmount,
-    string memory metadataUri
+    string memory metadataUriLive,
+    string memory metadataUriReady
   );
 
   function getInsuranceStatus(address _walletAddress) external view returns (
@@ -39,7 +40,7 @@ interface ISafeExitFund {
   // External setter functions
   function setRandomSeed(uint256 _randomSeed) external;
   function setCustomInsuranceLimit(uint256 _nftId, uint256 _limit) external;
-  function setMetadataUri(uint256 _packageId, string memory _uri) external;
+  function setMetadataUri(uint256 _packageId, string memory _uriLive, string memory _uriReady) external;
   function setUnrevealedMetadataUri(string memory _uri) external;
   function setUsedMetadataUri(string memory _uri) external;
   function setActivationDate(uint256 _date) external;
