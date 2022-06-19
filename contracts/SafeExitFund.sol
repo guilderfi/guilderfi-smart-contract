@@ -30,7 +30,8 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   struct Package {
     uint256 packageId;
     uint256 maxInsuranceAmount;
-    string metadataUri;
+    string metadataUriLive;
+    string metadataUriReady;
   }
 
   struct PackageChancePercentage {
@@ -209,8 +210,12 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
       return _usedMetadataUri;
     }
 
-    (, , string memory metadataUri) = getPackage(_nftId);
-    return metadataUri;
+    (, , string memory metadataUriLive, string memory metadataUriReady) = getPackage(_nftId);
+
+    (, , , , uint256 finalPayoutAmount) = getInsuranceStatus(ownerOf(_nftId));
+
+    if (finalPayoutAmount > 0) return metadataUriLive;
+    return metadataUriReady;
   }
 
   /**
@@ -220,7 +225,8 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   function getPackage(uint256 _nftId) public override view nftsRevealed returns (
     uint256 packageId,
     uint256 maxInsuranceAmount,
-    string memory metadataUri
+    string memory metadataUriLive
+    string memory metadataUriReady
   ) {
     // using timestamp salt & random seed & nftId we get a pseudo random number between 0 and 99
     uint256 randomNum = uint256(keccak256(abi.encodePacked(timestampSalt, randomSeed, _nftId))) % 100;
@@ -237,9 +243,10 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         
         packageId = package.packageId;
         maxInsuranceAmount = package.maxInsuranceAmount;
-        metadataUri = package.metadataUri;
+        metadataUriLive = package.metadataUriLive;
+        metadataUriReady = package.metadataUriReady;
 
-        return (packageId, maxInsuranceAmount, metadataUri);
+        return (packageId, maxInsuranceAmount, metadataUriLive, metadataUriReady);
       }
 
       rangeFrom += packageChances[i].chancePercentage;
@@ -248,7 +255,8 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     // if no package found, return empty package data
     packageId = 0;
     maxInsuranceAmount = 0;
-    metadataUri = "";
+    metadataUriLive = "";
+    metadataUriReady = "";
   }
 
   function getInsuranceStatus(address _walletAddress) public override view nftsRevealed returns (
@@ -332,9 +340,10 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     _customLimit[_nftId] = _limit;
   }
 
-  function setMetadataUri(uint256 _packageId, string memory _uri) external override onlyTokenOwner {
+  function setMetadataUri(uint256 _packageId, string memory _uriLive, string memory _uriReady) external override onlyTokenOwner {
     require(_packageId <= 4, "NFT package index not found"); // TODO - fix
-    packages[_packageId].metadataUri = _uri;
+    packages[_packageId].metadataUriLive = _uriLive;
+    packages[_packageId].metadataUriReady = _uriReady;
   }
 
   function setUnrevealedMetadataUri(string memory _uri) external override onlyTokenOwner {
