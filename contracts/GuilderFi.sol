@@ -81,7 +81,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     // SETTING FLAGS
     bool public override isAutoRebaseEnabled = true;
-    bool public override isAutoSwapEnabled = true;
+    bool public override isAutoSwapEnabled = false;
     bool public override isAutoLiquidityEnabled = false;
     bool public override isAutoLrfEnabled = false;
     bool public override isAutoSafeExitEnabled = true;
@@ -298,6 +298,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     }
 
     function shouldDoBasicTransfer(address sender, address recipient) internal view returns (bool) {
+        if (_inSwap) return true;
         if (_isContract[sender]) return true;
         if (_isContract[recipient]) return true;
         if (sender == address(_router) || recipient == address(_router)) return true;
