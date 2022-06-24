@@ -84,7 +84,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     bool public override isAutoSwapEnabled = true;
     bool public override isAutoLiquidityEnabled = false;
     bool public override isAutoLrfEnabled = false;
-    bool public override isAutoSafeExitEnabled = true;
+    bool public override isAutoSafeExitEnabled = false;
 
     // FREQUENCIES
     uint256 public override autoSwapFrequency = 0;    
