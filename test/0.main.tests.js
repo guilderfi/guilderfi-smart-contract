@@ -260,7 +260,6 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     // expect(await token.balanceOf(await token.getAutoLiquidityAddress())).to.be.closeTo(0, ether(1));
   });
 
-
   it("Swap engine should swap token to ETH and distribute proceeds", async function () {
     await token.connect(treasury).setFees(
       true, // _isSellFee,
