@@ -34,7 +34,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     address private constant ZERO = 0x0000000000000000000000000000000000000000;
 
     // SUPPLY CONSTANTS
-    uint256 private constant INITIAL_FRAGMENTS_SUPPLY = 100 * 10**6 * 10**DECIMALS; // 100 million
+    uint256 private constant INITIAL_FRAGMENTS_SUPPLY = 1 * 10**6 * 10**DECIMALS; // 1 million
     uint256 private constant MAX_SUPPLY = 82 * 10**21 * 10**DECIMALS;
     uint256 private constant TOTAL_GONS = MAX_UINT256 - (MAX_UINT256 % INITIAL_FRAGMENTS_SUPPLY);
 

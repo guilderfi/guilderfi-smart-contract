@@ -25,7 +25,7 @@ contract PreSale is IPreSale {
   }
 
   // tiers
-  Tier private publicSale = Tier(0, 0.1 ether, 10 ether, 300 ether);
+  Tier private publicSale = Tier(0, 0.25 ether, 10 ether, 54 ether);
   
   // tiers array
   Tier[] private tiers;
@@ -44,7 +44,7 @@ contract PreSale is IPreSale {
   mapping(uint256 => uint256) private _saleCaps;
   mapping(uint256 => uint256) private _saleCloseDates;
 
-  uint256 private _softCap = 10000 ether;
+  uint256 private _softCap = 0.001 ether;
   uint256 private _lockDuration = 30 days;
 
   // flags

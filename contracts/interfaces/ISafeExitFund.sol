@@ -26,7 +26,8 @@ interface ISafeExitFund {
     uint256 packageId,
     uint256 maxInsuranceAmount,
     string memory metadataUriLive,
-    string memory metadataUriReady
+    string memory metadataUriReady,
+    string memory metadataUriDead
   );
 
   function getInsuranceStatus(address _walletAddress) external view returns (
