@@ -28,6 +28,14 @@ const account1 = createWallet(ethers);
 const account2 = createWallet(ethers);
 const account3 = createWallet(ethers);
 
+const ETH_PRICE_PRECISION = 8;
+
+async function calculateTokenETHPrice(pair) {
+  const {reserve0, reserve1} = await pair.getReserves();
+
+  return reserve0.mul(Math.pow(10, ETH_PRICE_PRECISION)).div(reserve1);
+}
+
 describe(`Testing ${TOKEN_NAME}..`, function () {
   before(async function () {
     // Set up accounts
@@ -228,7 +236,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
   it("Auto liquidity engine should should add liquidity to exchange", async function () {
     // set frequency to zero to force auto liquidity on next transaction
     await token.connect(treasury).setSwapFrequency(84600);
-    await token.connect(treasury).setAutoLiquidity(true);
+    await token.connect(treasury).setAutoLiquidity(false);
     await token.connect(treasury).setAutoLiquidityFrequency(0);
 
     expect(await token.balanceOf(await token.getAutoLiquidityAddress())).to.equal(ether(80));
@@ -238,6 +246,10 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     // do a transaction
     await token.connect(account3).transfer(account2.address, ether(100));
 
+    // Run execute manually
+    const autoLiquidityEngine = await ethers.getContractAt("IAutoLiquidityEngine", await token.getAutoLiquidityAddress());
+    await autoLiquidityEngine.connect(treasury).execute();
+
     // check dex reserves after transaction
     const reservesAfter = await getLiquidityReserves({ token, pair });
     const ethReservesDifference = reservesAfter.ethReserves.sub(reservesBefore.ethReserves);
@@ -246,5 +258,58 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(ethReservesDifference).to.equal(0);
     expect(tokenReservesDifference).to.be.closeTo(ether(80), ether(1));
     // expect(await token.balanceOf(await token.getAutoLiquidityAddress())).to.be.closeTo(0, ether(1));
+  });
+
+  it("Swap engine should swap token to ETH and distribute proceeds", async function () {
+    await token.connect(treasury).setFees(
+      true, // _isSellFee,
+      50, // 5% _treasuryFee,
+      30, // 3% _lrfFee,
+      50, // 5% _liquidityFee,
+      20, // 2% _safeExitFee,
+      10 // 1%  _burnFee
+    );
+
+    const swapEngine = await ethers.getContractAt("ISwapEngine", await token.getSwapEngineAddress());
+    const autoLiquidityEngine = await ethers.getContractAt("IAutoLiquidityEngine", await token.getAutoLiquidityAddress());
+    const safeExitFundAddress = await token.getSafeExitFundAddress();
+    const treasuryAddress = await token.getTreasuryAddress();
+
+    
+    const SwapETHBalanceBefore = await ethers.provider.getBalance(swapEngine.address);
+    const ALEETHBalanceBefore = await ethers.provider.getBalance(autoLiquidityEngine.address);
+    const LRFETHBalanceBefore = await ethers.provider.getBalance(lrf.address);
+    const safeExitFundETHBalanceBefore = await ethers.provider.getBalance(safeExitFundAddress);
+    const treasuryBalanceBefore = await ethers.provider.getBalance(treasuryAddress);
+    const deadBalanceBefore = await ethers.provider.getBalance(DEAD);
+
+    // do a transaction
+    await buyTokensFromDex({ router, pair, token, account: account1, tokenAmount: ether(1000) });
+
+
+    // Run execute manually
+    const swapExecuteTx = await swapEngine.connect(treasury).execute();
+    const swapExecuteReceipt = await swapExecuteTx.wait();
+    const swapExecuteGasUsed = BigInt(swapExecuteReceipt.cumulativeGasUsed) * BigInt(swapExecuteReceipt.effectiveGasPrice);
+    
+    const swapTokenBalanceAfter = await token.balanceOf(swapEngine.address);
+    
+    const swapETHBalanceAfter = await ethers.provider.getBalance(swapEngine.address);
+    const ALEETHBalanceAfter = await ethers.provider.getBalance(autoLiquidityEngine.address);
+    const LRFETHBalanceAfter = await ethers.provider.getBalance(lrf.address);
+    const safeExitFundETHBalanceAfter = await ethers.provider.getBalance(safeExitFundAddress);
+    const treasuryBalanceAfter = await ethers.provider.getBalance(treasuryAddress);
+    const deadBalanceAfter = await ethers.provider.getBalance(DEAD);
+    
+    
+    expect(swapTokenBalanceAfter).to.eq(0);
+    expect(swapETHBalanceAfter).to.eq(0);
+    expect(ALEETHBalanceAfter).to.eq(0);
+
+    expect(treasuryBalanceAfter.sub(treasuryBalanceBefore).add(swapExecuteGasUsed)).to.gt(0);
+    expect(safeExitFundETHBalanceAfter.sub(safeExitFundETHBalanceBefore)).to.gt(0);
+    expect(LRFETHBalanceAfter.sub(LRFETHBalanceBefore)).to.gt(0);
+    
+    // expect(deadBalanceAfter.sub(deadBalanceBefore)).to.gt(0);
   });
 });
