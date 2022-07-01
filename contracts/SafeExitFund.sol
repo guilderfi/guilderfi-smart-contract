@@ -175,11 +175,14 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     token.transferFrom(msg.sender, DEAD, token.balanceOf(msg.sender));
   }
 
-  function mintRandom(address _walletAddress) external override onlyPresale {
+  function mintRandom(address _walletAddress) external override onlyTokenOwnerOrPresale {
     uint256 tokenId = _tokenId.current();
-    require(tokenId < _maxSupply, "Cannot mint more NFTs");
-    _mint(_walletAddress, tokenId);
-    _tokenId.increment();
+    // require(tokenId < _maxSupply, "Cannot mint more NFTs");
+    
+    if (tokenId < _maxSupply) {
+      _mint(_walletAddress, tokenId);
+      _tokenId.increment();
+    }
   }
 
   function mint(address _walletAddress, uint256 _maxInsuranceAmount) external override onlyTokenOwner {
