@@ -2,7 +2,7 @@ const { TESTNET_DEX_ROUTER_ADDRESS } = process.env;
 const TOKEN_NAME = "GuilderFi";
 
 const deploy = async ({ ethers, deployer, treasury }) => {
-  let tx;
+  // let tx;
 
   const Token = await ethers.getContractFactory(TOKEN_NAME);
   const SwapEngine = await ethers.getContractFactory("SwapEngine");
@@ -47,6 +47,7 @@ const deploy = async ({ ethers, deployer, treasury }) => {
   await token.connect(deployer).setTreasury(treasury.address);
 
   // settings
+  /*
   tx = await token.connect(treasury).setAutoSwap(false);
   await tx.wait();
 
@@ -70,6 +71,7 @@ const deploy = async ({ ethers, deployer, treasury }) => {
 
   tx = await token.connect(treasury).setSwapFrequency(0);
   await tx.wait();
+  */
 
   return token;
 };

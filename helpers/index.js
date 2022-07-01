@@ -67,7 +67,9 @@ const buyTokensFromDexByExactEth = async ({ router, token, account, ethAmount })
 };
 
 const sellTokens = async ({ router, token, account, tokenAmount, expiry }) => {
-  const tx = await router.connect(account).swapExactTokensForETHSupportingFeeOnTransferTokens(
+  const tx = await router.connect(account).swapExactTokensForETH(
+    // swapExactTokensForETHSupportingFeeOnTransferTokens is not supported in dex UI
+    // must use swapExactTokensForEth
     tokenAmount,
     0, // minimum ETH out
     [token.address, await router.WETH()], // pair
