@@ -201,6 +201,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(await token.balanceOf(DEAD)).to.equal(ether(50 + 9));
   });
 
+  /* SHOULD THIS TEST BE REMOVED? SWAP ENGINE IS TESTED AGAIN AT THE END OF THIS TEST SUITE */
   it("Should swap tokens collected for ETH", async function () {
     // set frequency to zero to force swap on next transaction
     await token.connect(treasury).setSwapFrequency(0);
