@@ -28,13 +28,17 @@ const account1 = createWallet(ethers);
 const account2 = createWallet(ethers);
 const account3 = createWallet(ethers);
 
+/* 
+  DONT USE THIS FUNCTION
+  USE getLiquidityReserves().tokenPrice from helpers/index.js instead
+*/
+/*
 const ETH_PRICE_PRECISION = 8;
-
 async function calculateTokenETHPrice(pair) {
-  const {reserve0, reserve1} = await pair.getReserves();
-
+  const { reserve0, reserve1 } = await pair.getReserves();
   return reserve0.mul(Math.pow(10, ETH_PRICE_PRECISION)).div(reserve1);
 }
+*/
 
 describe(`Testing ${TOKEN_NAME}..`, function () {
   before(async function () {
@@ -275,33 +279,30 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     const safeExitFundAddress = await token.getSafeExitFundAddress();
     const treasuryAddress = await token.getTreasuryAddress();
 
-    
-    const SwapETHBalanceBefore = await ethers.provider.getBalance(swapEngine.address);
-    const ALEETHBalanceBefore = await ethers.provider.getBalance(autoLiquidityEngine.address);
+    // const SwapETHBalanceBefore = await ethers.provider.getBalance(swapEngine.address);
+    // const ALEETHBalanceBefore = await ethers.provider.getBalance(autoLiquidityEngine.address);
     const LRFETHBalanceBefore = await ethers.provider.getBalance(lrf.address);
     const safeExitFundETHBalanceBefore = await ethers.provider.getBalance(safeExitFundAddress);
     const treasuryBalanceBefore = await ethers.provider.getBalance(treasuryAddress);
-    const deadBalanceBefore = await ethers.provider.getBalance(DEAD);
+    // const deadBalanceBefore = await ethers.provider.getBalance(DEAD);
 
     // do a transaction
     await buyTokensFromDex({ router, pair, token, account: account1, tokenAmount: ether(1000) });
-
 
     // Run execute manually
     const swapExecuteTx = await swapEngine.connect(treasury).execute();
     const swapExecuteReceipt = await swapExecuteTx.wait();
     const swapExecuteGasUsed = BigInt(swapExecuteReceipt.cumulativeGasUsed) * BigInt(swapExecuteReceipt.effectiveGasPrice);
-    
+
     const swapTokenBalanceAfter = await token.balanceOf(swapEngine.address);
-    
+
     const swapETHBalanceAfter = await ethers.provider.getBalance(swapEngine.address);
     const ALEETHBalanceAfter = await ethers.provider.getBalance(autoLiquidityEngine.address);
     const LRFETHBalanceAfter = await ethers.provider.getBalance(lrf.address);
     const safeExitFundETHBalanceAfter = await ethers.provider.getBalance(safeExitFundAddress);
     const treasuryBalanceAfter = await ethers.provider.getBalance(treasuryAddress);
-    const deadBalanceAfter = await ethers.provider.getBalance(DEAD);
-    
-    
+    // const deadBalanceAfter = await ethers.provider.getBalance(DEAD);
+
     expect(swapTokenBalanceAfter).to.eq(0);
     expect(swapETHBalanceAfter).to.eq(0);
     expect(ALEETHBalanceAfter).to.eq(0);
@@ -309,7 +310,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(treasuryBalanceAfter.sub(treasuryBalanceBefore).add(swapExecuteGasUsed)).to.gt(0);
     expect(safeExitFundETHBalanceAfter.sub(safeExitFundETHBalanceBefore)).to.gt(0);
     expect(LRFETHBalanceAfter.sub(LRFETHBalanceBefore)).to.gt(0);
-    
+
     // expect(deadBalanceAfter.sub(deadBalanceBefore)).to.gt(0);
   });
 });

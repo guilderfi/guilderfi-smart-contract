@@ -2,19 +2,8 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 const { deploy } = require("../helpers/deploy");
-const { MAX_INT, TOKEN_NAME, ether, print, createWallet } = require("../helpers/utils");
-const {
-  transferTokens,
-  buyTokensFromDex,
-  sellTokens,
-  addLiquidity,
-  getLiquidityReserves,
-  calculateEthToReceive,
-  calculateLPtokens,
-  transferEth,
-} = require("../helpers");
-
-const DEAD = ethers.utils.getAddress("0x000000000000000000000000000000000000dEaD");
+const { MAX_INT, ether, print, createWallet } = require("../helpers/utils");
+const { buyTokensFromDex, sellTokens, addLiquidity, transferEth } = require("../helpers");
 
 let token;
 let deployer;
@@ -22,13 +11,10 @@ let treasury;
 let router;
 let pair;
 let lrf;
-let safeExit;
 
 const account1 = createWallet(ethers);
 const account2 = createWallet(ethers);
 const account3 = createWallet(ethers);
-
-
 
 describe.only(`Testing liquidity relief fund..`, function () {
   before(async function () {
@@ -42,7 +28,6 @@ describe.only(`Testing liquidity relief fund..`, function () {
     router = await ethers.getContractAt("IDexRouter", await token.getRouter());
     pair = await ethers.getContractAt("IDexPair", await token.getPair());
     lrf = await ethers.getContractAt("LiquidityReliefFund", await token.getLrfAddress());
-    safeExit = await ethers.getContractAt("SafeExitFund", await token.getSafeExitFundAddress());
 
     // transfer some eth to test accounts
     await transferEth({ from: deployer, to: account1, amount: ether(10000) });
@@ -63,24 +48,24 @@ describe.only(`Testing liquidity relief fund..`, function () {
       ethAmount,
     });
   });
-  
+
   it("Should only become active when activation target has been met", async function () {
     expect(lrf.hasReachedActivationTarget).to.be.true();
   });
 
   it("Should buy tokens when backed liquidity > 100%", async function () {
     await sellTokens({ router, token, account: treasury, tokenAmount: ether(500000) });
-    
-    //Ensure ratio is above MIDPOINT
-    const ratioBefore = (await lrf.getBackedLiquidityRatio());
+
+    // Ensure ratio is above MIDPOINT
+    const ratioBefore = await lrf.getBackedLiquidityRatio();
     expect(ratioBefore).to.gt(10000);
-    
+
     const LRFBalanceBefore = await token.balanceOf(lrf.address);
-    
+
     await lrf.connect(treasury).execute();
-    
-    const ratioAfter = (await lrf.getBackedLiquidityRatio());
-    //Ensure ratio is back to MIDPOINT
+
+    const ratioAfter = await lrf.getBackedLiquidityRatio();
+    // Ensure ratio is back to MIDPOINT
     expect(ratioAfter).to.equal(10000);
 
     const LRFBalanceAfter = await token.balanceOf(lrf.address);
@@ -90,21 +75,19 @@ describe.only(`Testing liquidity relief fund..`, function () {
     await buyTokensFromDex({ router, pair, token, account: treasury, tokenAmount: ether(500000) });
   });
 
-
   it("Should sell tokens when backed liquidity < 100%", async function () {
     await buyTokensFromDex({ router, pair, token, account: treasury, tokenAmount: ether(500000) });
-    
-    //Ensure ratio is below MIDPOINT
-    const ratioBefore = (await lrf.getBackedLiquidityRatio());
+
+    // Ensure ratio is below MIDPOINT
+    const ratioBefore = await lrf.getBackedLiquidityRatio();
     expect(ratioBefore).to.lt(10000);
 
-    
     const LRFBalanceBefore = await token.balanceOf(lrf.address);
-    
+
     await lrf.connect(treasury).execute();
-    
-    const ratioAfter = (await lrf.getBackedLiquidityRatio());
-    //Ensure ratio is back to MIDPOINT
+
+    const ratioAfter = await lrf.getBackedLiquidityRatio();
+    // Ensure ratio is back to MIDPOINT
     expect(ratioAfter).to.equal(10000);
 
     const LRFBalanceAfter = await token.balanceOf(lrf.address);
@@ -116,18 +99,18 @@ describe.only(`Testing liquidity relief fund..`, function () {
 
   it("Should not execute when backed liquidity > 115%", async function () {
     await sellTokens({ router, token, account: treasury, tokenAmount: ether(500000) });
-    
-    //Ensure ratio is above HIGH_CAP
-    const ratioBefore = (await lrf.getBackedLiquidityRatio());
-    expect(ratioBefore).to.gt(11500);
-    
-    const LRFBalanceBefore = await token.balanceOf(lrf.address);
-    
-    await lrf.connect(treasury).execute();
-    
-    const ratioAfter = (await lrf.getBackedLiquidityRatio());
 
-    //Ensure ratio is the same
+    // Ensure ratio is above HIGH_CAP
+    const ratioBefore = await lrf.getBackedLiquidityRatio();
+    expect(ratioBefore).to.gt(11500);
+
+    const LRFBalanceBefore = await token.balanceOf(lrf.address);
+
+    await lrf.connect(treasury).execute();
+
+    const ratioAfter = await lrf.getBackedLiquidityRatio();
+
+    // Ensure ratio is the same
     expect(ratioAfter).to.equal(ratioBefore);
 
     const LRFBalanceAfter = await token.balanceOf(lrf.address);
@@ -140,20 +123,19 @@ describe.only(`Testing liquidity relief fund..`, function () {
   it("Should not execute when backed liquidity < 85%", async function () {
     await buyTokensFromDex({ router, pair, token, account: treasury, tokenAmount: ether(500000) });
     // await buyTokensFromDex({ router, pair, token, account: treasury, tokenAmount: ether(500000) });
-    console.log("LRF ratio 2", (await lrf.getBackedLiquidityRatio()));
+    console.log("LRF ratio 2", await lrf.getBackedLiquidityRatio());
 
-    
-    //Ensure ratio is below LOW_CAP
-    const ratioBefore = (await lrf.getBackedLiquidityRatio());
+    // Ensure ratio is below LOW_CAP
+    const ratioBefore = await lrf.getBackedLiquidityRatio();
     expect(ratioBefore).to.lt(8500);
-    
-    const LRFBalanceBefore = await token.balanceOf(lrf.address);
-    
-    await lrf.connect(treasury).execute();
-    
-    const ratioAfter = (await lrf.getBackedLiquidityRatio());
 
-    //Ensure ratio is the same
+    const LRFBalanceBefore = await token.balanceOf(lrf.address);
+
+    await lrf.connect(treasury).execute();
+
+    const ratioAfter = await lrf.getBackedLiquidityRatio();
+
+    // Ensure ratio is the same
     expect(ratioAfter).to.equal(ratioBefore);
 
     const LRFBalanceAfter = await token.balanceOf(lrf.address);
@@ -161,6 +143,5 @@ describe.only(`Testing liquidity relief fund..`, function () {
     // LRF should have the same token balance
     expect(LRFBalanceAfter).to.eq(LRFBalanceBefore);
     await sellTokens({ router, token, account: treasury, tokenAmount: ether(500000) });
-
   });
 });
