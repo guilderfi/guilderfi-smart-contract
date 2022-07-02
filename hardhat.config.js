@@ -1,6 +1,7 @@
 const { task } = require("hardhat/config");
 const { verify } = require("./helpers/verify");
 const { getAccounts } = require("./helpers/accounts");
+const { BigNumber } = require("ethers");
 
 require("dotenv").config();
 require("@nomiclabs/hardhat-etherscan");
@@ -93,12 +94,40 @@ task("presale", "Run presale").setAction(async (taskArgs, hre) => {
   const preSale = PreSale.attach(await token.getPreSaleAddress());
 
   // get signers
-  const [, treasury, account1] = await hre.ethers.getSigners();
+  const [, treasury /*, account1 */] = await hre.ethers.getSigners();
+  // console.log("Setting up pre-sale...");
+  // await preSale.connect(treasury).addToWhitelist([account1.address], 1);
 
-  console.log("Setting up pre-sale...");
-  await preSale.connect(treasury).addToWhitelist([account1.address], 1);
+  console.log("Opening up public sale...");
+  await preSale.connect(treasury).setSoftCap(0);
+  await preSale.connect(treasury).openPublicSale(true);
+  await preSale.connect(treasury).openWhitelistSale(0, true);
+  await token.connect(treasury).transfer(preSale.address, BigNumber.from("270000000000000000000000"));
   console.log("Done!");
 });
+
+task("finalise", "Finalise pre-sale")
+  .addParam("address", "Token contract address")
+  .setAction(async (taskArgs, hre) => {
+    // get deployed token
+    const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
+    const token = await Token.attach(taskArgs.address);
+
+    const PreSale = await hre.ethers.getContractFactory("PreSale");
+    const preSale = PreSale.attach(await token.getPreSaleAddress());
+
+    const SafeExit = await hre.ethers.getContractFactory("SafeExitFund");
+    const safeExit = SafeExit.attach(await token.getSafeExitFundAddress());
+
+    const [, treasury] = await hre.ethers.getSigners();
+
+    console.log("Finalising public sale...");
+    await preSale.connect(treasury).setSoftCap(0);
+    await preSale.connect(treasury).finalizeSale();
+    await token.connect(treasury).launchToken();
+    await safeExit.connect(treasury).setRandomSeed(123);
+    console.log("Done!");
+  });
 
 task("setup", "Set up sub-contracts and DEX")
   .addParam("address", "Token contract address")

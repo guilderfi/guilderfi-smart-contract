@@ -60,22 +60,22 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     await transferEth({ from: deployer, to: account3, amount: ether(10) });
   });
 
-  it("Should mint 100m tokens", async function () {
+  it("Should mint 1m tokens", async function () {
     // Set all frequencies to 1 day
     await token.connect(treasury).setSwapFrequency(86400);
     await token.connect(treasury).setLrfFrequency(86400);
     await token.connect(treasury).setAutoLiquidityFrequency(86400);
 
-    expect(await token.totalSupply()).to.equal(ether(100000000));
-    expect(await token.balanceOf(treasury.address)).to.equal(ether(100000000));
+    expect(await token.totalSupply()).to.equal(ether(1000000));
+    expect(await token.balanceOf(treasury.address)).to.equal(ether(1000000));
   });
 
   it("Treasury should be able to add initial liquidity to liquidity pool", async function () {
     // Approve DEX to transfer
     await token.connect(treasury).approve(router.address, MAX_INT);
 
-    // Add 10 million tokens + 10 BNB into liquidity
-    const tokenAmount = ether(10000000);
+    // Add 100k tokens + 10 BNB into liquidity
+    const tokenAmount = ether(100000);
     const ethAmount = ether(10);
 
     await addLiquidity({
@@ -94,7 +94,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     // Check eth/token reserves in DEX pair
     const { ethReserves, tokenReserves } = await getLiquidityReserves({ token, pair });
     expect(ethReserves).to.equal(ether(10, 18));
-    expect(tokenReserves).to.equal(ether(10000000));
+    expect(tokenReserves).to.equal(ether(100000));
   });
 
   it("Should allow treasury to transfer tokens during pre-sale", async function () {

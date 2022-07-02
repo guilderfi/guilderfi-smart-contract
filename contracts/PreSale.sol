@@ -25,7 +25,7 @@ contract PreSale is IPreSale {
   }
 
   // tiers
-  Tier private publicSale = Tier(0, 0.1 ether, 10 ether, 300 ether);
+  Tier private publicSale = Tier(0, 0.25 ether, 10 ether, 54 ether);
   
   // tiers array
   Tier[] private tiers;
@@ -57,7 +57,7 @@ contract PreSale is IPreSale {
   IGuilderFi private _token;
 
   modifier onlyTokenOwner() {
-    require(msg.sender == address(_token.getOwner()), "Sender is not _token owner");
+    require(msg.sender == address(_token.getOwner()), "Sender is not token owner");
     _;
   }
 
