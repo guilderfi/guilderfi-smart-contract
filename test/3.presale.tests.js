@@ -57,8 +57,8 @@ describe(`Testing pre-sale..`, function () {
     pair = await ethers.getContractAt("IDexPair", await token.getPair());
     preSale = await ethers.getContractAt("PreSale", await token.getPreSaleAddress());
 
-    // send 27m tokens to presale contract
-    await transferTokens({ token, from: treasury, to: preSale, amount: ether(50000000) });
+    // send 1m tokens to presale contract
+    await transferTokens({ token, from: treasury, to: preSale, amount: ether(1000000) });
 
     // transfer some eth to test accounts
     await transferEth({ from: deployer, to: account1, amount: ether(150) });
@@ -308,7 +308,7 @@ describe(`Testing pre-sale..`, function () {
 
     // check account balances
     expect(await ethers.provider.getBalance(await token.getLrfAddress())).to.equal(expectedLrfEth);
-    expect(await ethers.provider.getBalance(await token.getSafeExitFundAddress())).to.equal(expectedSafeExitEth);
+    expect(await ethers.provider.getBalance(await token.getSafeExitFundAddress())).to.be.closeTo(expectedSafeExitEth, ether(1));
     expect(treasuryEth).to.equal(expectedTreasuryEth.sub(gas)); // account for gas to finalise sale
 
     const expectedLPtokens = calculateLPtokens({ tokenAmount: expectedLiquidityTokens, ethAmount: expectedLiquidityEth });

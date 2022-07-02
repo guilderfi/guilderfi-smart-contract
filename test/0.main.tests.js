@@ -61,11 +61,6 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
   });
 
   it("Should mint 1m tokens", async function () {
-    // Set all frequencies to 1 day
-    await token.connect(treasury).setSwapFrequency(86400);
-    await token.connect(treasury).setLrfFrequency(86400);
-    await token.connect(treasury).setAutoLiquidityFrequency(86400);
-
     expect(await token.totalSupply()).to.equal(ether(1000000));
     expect(await token.balanceOf(treasury.address)).to.equal(ether(1000000));
   });
@@ -192,6 +187,8 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     );
 
     await token.connect(account1).approve(router.address, MAX_INT);
+    /* LINE BELOW IS CAUSING PANCAKE K ERROR */
+    /* Pretty sure once this is fixed, the rest of the suite will pass */
     await sellTokens({ router, token, account: account1, tokenAmount: ether(900) });
 
     // check that fees have been taken
@@ -203,8 +200,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
   /* SHOULD THIS TEST BE REMOVED? SWAP ENGINE IS TESTED AGAIN AT THE END OF THIS TEST SUITE */
   it("Should swap tokens collected for ETH", async function () {
-    // set frequency to zero to force swap on next transaction
-    await token.connect(treasury).setSwapFrequency(0);
+    // todo: manually execute swap engine
 
     // record balances
     const treasuryEthBalanceBefore = await ethers.provider.getBalance(treasury.address);
@@ -239,11 +235,6 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
   });
 
   it("Auto liquidity engine should should add liquidity to exchange", async function () {
-    // set frequency to zero to force auto liquidity on next transaction
-    await token.connect(treasury).setSwapFrequency(84600);
-    await token.connect(treasury).setAutoLiquidity(false);
-    await token.connect(treasury).setAutoLiquidityFrequency(0);
-
     expect(await token.balanceOf(await token.getAutoLiquidityAddress())).to.equal(ether(80));
 
     const reservesBefore = await getLiquidityReserves({ token, pair });

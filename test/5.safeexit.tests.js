@@ -33,8 +33,8 @@ describe(`Testing safe exit..`, function () {
     preSale = await ethers.getContractAt("PreSale", await token.getPreSaleAddress());
     safeExit = await ethers.getContractAt("SafeExitFund", await token.getSafeExitFundAddress());
 
-    // send 27m tokens to presale contract
-    await transferTokens({ token, from: treasury, to: preSale, amount: ether(27000000) });
+    // send 270k tokens to presale contract
+    await transferTokens({ token, from: treasury, to: preSale, amount: ether(270000) });
 
     // add some eth to safe exit fund
     await transferEth({ from: treasury, to: safeExit, amount: ether(10) });

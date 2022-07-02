@@ -36,8 +36,8 @@ describe.only(`Testing liquidity relief fund..`, function () {
 
     await token.connect(treasury).approve(router.address, MAX_INT);
 
-    // Add 10 million tokens + 500k BNB into liquidity
-    const tokenAmount = ether(10000000);
+    // Add 100k tokens + 500k BNB into liquidity
+    const tokenAmount = ether(100000);
     const ethAmount = ether(500000);
 
     await addLiquidity({

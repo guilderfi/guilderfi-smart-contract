@@ -122,7 +122,7 @@ task("finalise", "Finalise pre-sale")
     const [, treasury] = await hre.ethers.getSigners();
 
     console.log("Finalising public sale...");
-    await preSale.connect(treasury).setSoftCap(0);
+    // await preSale.connect(treasury).setSoftCap(0);
     await preSale.connect(treasury).finalizeSale();
     await token.connect(treasury).launchToken();
     await safeExit.connect(treasury).setRandomSeed(123);

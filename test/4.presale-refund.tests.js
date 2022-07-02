@@ -25,8 +25,8 @@ describe(`Testing pre-sale refund scenario..`, function () {
     // contracts
     preSale = await ethers.getContractAt("PreSale", await token.getPreSaleAddress());
 
-    // send 27m tokens to presale contract
-    await transferTokens({ token, from: treasury, to: preSale, amount: ether(27000000) });
+    // send 270k tokens to presale contract
+    await transferTokens({ token, from: treasury, to: preSale, amount: ether(270000) });
 
     // transfer some eth to test accounts
     await transferEth({ from: deployer, to: account1, amount: ether(150) });
