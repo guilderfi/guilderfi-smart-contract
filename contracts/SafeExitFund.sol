@@ -52,7 +52,6 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
   // metadata uri's
   string private _unrevealedMetadataUri = "";
-  string private _usedMetadataUri = "";
 
   // lottery
   bool private randomSeedHasBeenSet = false;
@@ -99,16 +98,18 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     token = IGuilderFi(tokenAddress);
 
     // Set max insurance amount of each NFT package
-    packages[1] = Package(1, 25 ether, "", "", "");
-    packages[2] = Package(2, 10 ether, "", "", "");
-    packages[3] = Package(3, 5 ether, "", "", "");
-    packages[4] = Package(4, 2 ether, "", "", "");
+    packages[1] = Package(1, 100 ether, "", "", "");
+    packages[2] = Package(2, 25 ether, "", "", "");
+    packages[3] = Package(3, 10 ether, "", "", "");
+    packages[4] = Package(4, 5 ether, "", "", "");
+    packages[5] = Package(5, 1 ether, "", "", "");
 
     // Set % chances of receiving each NFT package
-    packageChances.push(PackageChancePercentage(1, 25));
-    packageChances.push(PackageChancePercentage(2, 25));
-    packageChances.push(PackageChancePercentage(3, 25));
-    packageChances.push(PackageChancePercentage(4, 25));    
+    packageChances.push(PackageChancePercentage(1, 20));
+    packageChances.push(PackageChancePercentage(2, 20));
+    packageChances.push(PackageChancePercentage(3, 20));
+    packageChances.push(PackageChancePercentage(4, 20));
+    packageChances.push(PackageChancePercentage(5, 20));
   }
 
   /**
@@ -196,7 +197,6 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
    */
   function maxSupply() public override view returns (uint256) { return _maxSupply; }
   function unrevealedMetadataUri() public override view returns (string memory) { return _unrevealedMetadataUri; }
-  function usedMetadataUri() public override view returns (string memory) { return _usedMetadataUri; }
   function activationDate() public override view returns (uint256) { return _activationDate; }
   function issuedTokens() public override view returns (uint256) { return _tokenId.current(); }
 
@@ -342,18 +342,14 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     _customLimit[_nftId] = _limit;
   }
 
-  function setMetadataUri(uint256 _packageId, string memory _uriLive, string memory _uriReady) external override onlyTokenOwner {
-    require(_packageId <= 4, "NFT package index not found"); // TODO - fix
+  function setMetadataUri(uint256 _packageId, string memory _uriLive, string memory _uriReady, string memory _uriDead) external override onlyTokenOwner {
     packages[_packageId].metadataUriLive = _uriLive;
     packages[_packageId].metadataUriReady = _uriReady;
+    packages[_packageId].metadataUriDead = _uriDead;
   }
 
   function setUnrevealedMetadataUri(string memory _uri) external override onlyTokenOwner {
     _unrevealedMetadataUri = _uri;
-  }
-  
-  function setUsedMetadataUri(string memory _uri) external override onlyTokenOwner {
-    _usedMetadataUri = _uri;
   }
 
   function setActivationDate(uint256 _date) external override onlyTokenOwnerOrPresale {
