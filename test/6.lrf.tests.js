@@ -13,7 +13,7 @@ let lrf;
 
 const account1 = createWallet(ethers);
 
-describe.only(`Testing liquidity relief fund..`, function () {
+describe(`Testing liquidity relief fund..`, function () {
   before(async function () {
     // Set up accounts
     [deployer] = await ethers.getSigners();
