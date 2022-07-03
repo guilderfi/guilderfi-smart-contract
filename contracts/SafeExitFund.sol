@@ -186,7 +186,6 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
   function mint(address _walletAddress, uint256 _maxInsuranceAmount) external override onlyTokenOwner {
     uint256 tokenId = _tokenId.current();
-    require(tokenId < _maxSupply, "Cannot mint more NFTs");
     _mint(_walletAddress, tokenId);
     _customLimit[tokenId] = _maxInsuranceAmount;
     _tokenId.increment();

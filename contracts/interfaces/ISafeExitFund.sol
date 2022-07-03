@@ -17,7 +17,6 @@ interface ISafeExitFund {
   // Public getter functions
   function maxSupply() external view returns (uint256);
   function unrevealedMetadataUri() external view returns (string memory);
-  function usedMetadataUri() external view returns (string memory);
   function activationDate() external view returns (uint256);
   function tokenURI(uint256 _nftId) external view returns (string memory);
   function issuedTokens() external view returns (uint256);
@@ -41,9 +40,8 @@ interface ISafeExitFund {
   // External setter functions
   function setRandomSeed(uint256 _randomSeed) external;
   function setCustomInsuranceLimit(uint256 _nftId, uint256 _limit) external;
-  function setMetadataUri(uint256 _packageId, string memory _uriLive, string memory _uriReady) external;
+  function setMetadataUri(uint256 _packageId, string memory _uriLive, string memory _uriReady, string memory _uriDead) external;
   function setUnrevealedMetadataUri(string memory _uri) external;
-  function setUsedMetadataUri(string memory _uri) external;
   function setActivationDate(uint256 _date) external;
   function setMaxSupply(uint256 newMaxSupply) external;
   
