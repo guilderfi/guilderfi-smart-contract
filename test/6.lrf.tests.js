@@ -16,7 +16,7 @@ const account1 = createWallet(ethers);
 const account2 = createWallet(ethers);
 const account3 = createWallet(ethers);
 
-describe.only(`Testing liquidity relief fund..`, function () {
+describe(`Testing liquidity relief fund..`, function () {
   before(async function () {
     // Set up accounts
     [deployer, treasury] = await ethers.getSigners();
