@@ -68,6 +68,7 @@ describe(`Testing pre-sale..`, function () {
     await transferEth({ from: deployer, to: account5, amount: ether(150) });
     await transferEth({ from: deployer, to: account6, amount: ether(150) });
     await transferEth({ from: deployer, to: account7, amount: ether(150) });
+    await token.connect(treasury).launchToken();
   });
 
   it("Should set up custom sales tiers", async function () {

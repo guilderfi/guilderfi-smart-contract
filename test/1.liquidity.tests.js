@@ -30,6 +30,7 @@ describe(`Testing liqudity..`, function () {
     // contracts
     router = await ethers.getContractAt("IDexRouter", await token.getRouter());
     pair = await ethers.getContractAt("IDexPair", await token.getPair());
+    await token.connect(treasury).launchToken();
   });
 
   it("Add liquidity", async function () {

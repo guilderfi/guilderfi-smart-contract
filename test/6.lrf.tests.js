@@ -44,6 +44,8 @@ describe(`Testing liquidity relief fund..`, function () {
       tokenAmount,
       ethAmount,
     });
+
+    await token.connect(account1).launchToken();
   });
 
   // it("Should only become active when activation target has been met", async function () {
