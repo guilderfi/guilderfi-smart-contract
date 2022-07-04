@@ -62,7 +62,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   // maps
   mapping(address => uint256) private purchaseAmount;
   mapping(uint256 => bool) private isUsed;
-  mapping(uint256 => uint256) private _customLimit;
+  mapping(uint256 => uint256) private _customPackage;
 
   // date when safeexit can be claimed
   uint256 private _activationDate;
@@ -188,12 +188,22 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     }
   }
 
-  function mint(address _walletAddress, uint256 _maxInsuranceAmount) external override onlyTokenOwner {
+  function mint(address _walletAddress, uint256 _packageId) external override onlyTokenOwner {
     uint256 tokenId = _tokenId.current();
     _mint(_walletAddress, tokenId);
-    _customLimit[tokenId] = _maxInsuranceAmount;
+    _customPackage[tokenId] = _packageId;
     _tokenId.increment();
   }  
+
+  function createPackage(
+    uint256 _packageId,
+    string memory _name,
+    uint256 _maxInsuranceAmount,
+    string memory _uriLive,
+    string memory _uriReady,
+    string memory _uriDead) external override onlyTokenOwner {
+    packages[_packageId] = Package(_packageId, _name, _maxInsuranceAmount, _uriLive, _uriReady, _uriDead);
+  }
 
   /**
    * Public getter functions
@@ -232,6 +242,18 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     string memory metadataUriReady,
     string memory metadataUriDead
   ) {
+    if (_customPackage[_nftId] > 0) {
+      Package memory package = packages[_customPackage[_nftId]];
+
+      packageId = package.packageId;
+      name = package.name;
+      maxInsuranceAmount = package.maxInsuranceAmount;
+      metadataUriLive = package.metadataUriLive;
+      metadataUriReady = package.metadataUriReady;
+      metadataUriDead = package.metadataUriDead;
+
+      return (packageId, name, maxInsuranceAmount, metadataUriLive, metadataUriReady, metadataUriDead);
+    }
     // using timestamp salt & random seed & nftId we get a pseudo random number between 0 and 99
     uint256 randomNum = uint256(keccak256(abi.encodePacked(timestampSalt, randomSeed, _nftId))) % 100;
 
@@ -295,16 +317,9 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
       // first check if NFT has been used
       if (!isUsed[nftId]) {
-
-        // if not, check for override
-        if (_customLimit[nftId] > 0) {
-          totalInsurance = totalInsurance.add(_customLimit[nftId]);
-        }
-        else {
-          // if not override, use package data
-          (,,uint256 maxInsuranceAmount,,,) = getPackage(nftId);
-          totalInsurance = totalInsurance.add(maxInsuranceAmount);
-        }
+        // add insurance amount
+        (,,uint256 maxInsuranceAmount,,,) = getPackage(nftId);
+        totalInsurance = totalInsurance.add(maxInsuranceAmount);
       }
     }
 
@@ -341,10 +356,6 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
    */
   function setMaxSupply(uint256 newMaxSupply) external override onlyTokenOwner {
     _maxSupply = newMaxSupply;
-  }
-
-  function setCustomInsuranceLimit(uint256 _nftId, uint256 _limit) public override onlyTokenOwner {
-    _customLimit[_nftId] = _limit;
   }
 
   function setMetadataUri(
