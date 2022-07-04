@@ -23,6 +23,7 @@ interface ISafeExitFund {
 
   function getPackage(uint256 _nftId) external view returns (
     uint256 packageId,
+    string memory name,
     uint256 maxInsuranceAmount,
     string memory metadataUriLive,
     string memory metadataUriReady,

@@ -29,6 +29,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
   struct Package {
     uint256 packageId;
+    string name;
     uint256 maxInsuranceAmount;
     string metadataUriLive;
     string metadataUriReady;
@@ -94,22 +95,22 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     _;
   }
 
-  constructor(address tokenAddress) ERC721("Safe Exit Fund", "SEF") {
+  constructor(address tokenAddress) ERC721("GuilderFi Safe Exit", "SAFEEXIT") {
     token = IGuilderFi(tokenAddress);
 
     // Set max insurance amount of each NFT package
-    packages[1] = Package(1, 100 ether, "", "", "");
-    packages[2] = Package(2, 25 ether, "", "", "");
-    packages[3] = Package(3, 10 ether, "", "", "");
-    packages[4] = Package(4, 5 ether, "", "", "");
-    packages[5] = Package(5, 1 ether, "", "", "");
+    packages[1] = Package(1, "Noble", 100 ether, "", "", "");
+    packages[2] = Package(2, "Artisan", 25 ether, "", "", "");
+    packages[3] = Package(3, "Clergy", 10 ether, "", "", "");
+    packages[4] = Package(4, "Merchant", 5 ether, "", "", "");
+    packages[5] = Package(5, "Guilder", 1 ether, "", "", "");
 
     // Set % chances of receiving each NFT package
-    packageChances.push(PackageChancePercentage(1, 20));
-    packageChances.push(PackageChancePercentage(2, 20));
-    packageChances.push(PackageChancePercentage(3, 20));
-    packageChances.push(PackageChancePercentage(4, 20));
-    packageChances.push(PackageChancePercentage(5, 20));
+    packageChances.push(PackageChancePercentage(1, 1));
+    packageChances.push(PackageChancePercentage(2, 10));
+    packageChances.push(PackageChancePercentage(3, 15));
+    packageChances.push(PackageChancePercentage(4, 25));
+    packageChances.push(PackageChancePercentage(5, 49));
   }
 
   /**
@@ -209,7 +210,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
       return _unrevealedMetadataUri;
     }
 
-    (, , string memory metadataUriLive, string memory metadataUriReady, string memory metadataUriDead) = getPackage(_nftId);
+    (, , , string memory metadataUriLive, string memory metadataUriReady, string memory metadataUriDead) = getPackage(_nftId);
 
     if (isUsed[_nftId]) return metadataUriDead;
 
@@ -225,6 +226,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
    */
   function getPackage(uint256 _nftId) public override view nftsRevealed returns (
     uint256 packageId,
+    string memory name,
     uint256 maxInsuranceAmount,
     string memory metadataUriLive,
     string memory metadataUriReady,
@@ -244,12 +246,13 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         Package memory package = packages[packageChances[i].packageId];
         
         packageId = package.packageId;
+        name = package.name;
         maxInsuranceAmount = package.maxInsuranceAmount;
         metadataUriLive = package.metadataUriLive;
         metadataUriReady = package.metadataUriReady;
         metadataUriDead = package.metadataUriDead;
 
-        return (packageId, maxInsuranceAmount, metadataUriLive, metadataUriReady, metadataUriDead);
+        return (packageId, name, maxInsuranceAmount, metadataUriLive, metadataUriReady, metadataUriDead);
       }
 
       rangeFrom += packageChances[i].chancePercentage;
@@ -299,7 +302,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         }
         else {
           // if not override, use package data
-          (, uint256 maxInsuranceAmount,,, ) = getPackage(nftId);
+          (,,uint256 maxInsuranceAmount,,,) = getPackage(nftId);
           totalInsurance = totalInsurance.add(maxInsuranceAmount);
         }
       }
@@ -344,7 +347,11 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     _customLimit[_nftId] = _limit;
   }
 
-  function setMetadataUri(uint256 _packageId, string memory _uriLive, string memory _uriReady, string memory _uriDead) external override onlyTokenOwner {
+  function setMetadataUri(
+    uint256 _packageId,
+    string memory _uriLive,
+    string memory _uriReady,
+    string memory _uriDead) external override onlyTokenOwner {
     packages[_packageId].metadataUriLive = _uriLive;
     packages[_packageId].metadataUriReady = _uriReady;
     packages[_packageId].metadataUriDead = _uriDead;
