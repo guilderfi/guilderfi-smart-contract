@@ -148,13 +148,9 @@ task("stuff", "Test stuff")
     const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
     const token = await Token.attach(taskArgs.address);
 
-    const PreSale = await hre.ethers.getContractFactory("PreSale");
-    const preSale = PreSale.attach(await token.getPreSaleAddress());
-
     const router = await hre.ethers.getContractAt("IDexRouter", await token.getRouter());
 
     // get signers
-    const [, treasury] = await hre.ethers.getSigners();
     const [, , account1] = await hre.ethers.getSigners();
 
     // account1 buy 1 eth of tokens

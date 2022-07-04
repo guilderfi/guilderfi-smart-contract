@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { deploy } = require("../helpers/deploy");
 const { ether, print, createWallet } = require("../helpers/utils");
-const { transferTokens, transferEth, getPendingRebases, buyTokensFromDex, addLiquidity, MAX_INT, sellTokens } = require("../helpers");
+const { transferTokens, transferEth, getPendingRebases, buyTokensFromDex, addLiquidity, MAX_INT } = require("../helpers");
 
 let token;
 let router;
