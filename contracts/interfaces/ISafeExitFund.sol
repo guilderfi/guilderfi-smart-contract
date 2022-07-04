@@ -47,7 +47,7 @@ interface ISafeExitFund {
   );
 
   // External setter functions
-  function setRandomSeed(uint256 _randomSeed) external;
+  function launchSafeExitNft(uint256 _randomSeed) external;
   function setMetadataUri(uint256 _packageId, string memory _uriLive, string memory _uriReady, string memory _uriDead) external;
   function setUnrevealedMetadataUri(string memory _uri) external;
   function setActivationDate(uint256 _date) external;

@@ -129,7 +129,7 @@ describe(`Testing safe exit..`, function () {
     await preSale.connect(treasury).finalizeSale();
 
     // set random safe exit seed
-    await safeExit.connect(treasury).setRandomSeed(123456);
+    await safeExit.connect(treasury).launchSafeExitNft(123456);
 
     // approve safe exit to burn tokens
     await token.connect(account6).approve(safeExit.address, MAX_INT);

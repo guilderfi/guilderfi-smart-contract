@@ -86,25 +86,33 @@ task("deploy-and-approve", "Deploys the contract to the blockchain", async (task
   await hre.run("approve", { address: token.address });
 });
 
-task("presale", "Run presale").setAction(async (taskArgs, hre) => {
-  const token = await hre.run("deploy");
-  await hre.run("setup", { address: token.address });
+task("presale", "Run presale")
+  .addParam("address", "Token contract address")
+  .setAction(async (taskArgs, hre) => {
+    // get deployed token
+    const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
+    const token = await Token.attach(taskArgs.address);
 
-  const PreSale = await hre.ethers.getContractFactory("PreSale");
-  const preSale = PreSale.attach(await token.getPreSaleAddress());
+    const PreSale = await hre.ethers.getContractFactory("PreSale");
+    const preSale = PreSale.attach(await token.getPreSaleAddress());
 
-  // get signers
-  const [, treasury /*, account1 */] = await hre.ethers.getSigners();
-  // console.log("Setting up pre-sale...");
-  // await preSale.connect(treasury).addToWhitelist([account1.address], 1);
+    // get signers
+    const [, treasury] = await hre.ethers.getSigners();
+    const [, , account1] = await hre.ethers.getSigners();
 
-  console.log("Opening up public sale...");
-  await preSale.connect(treasury).setSoftCap(0);
-  await preSale.connect(treasury).openPublicSale(true);
-  await preSale.connect(treasury).openWhitelistSale(0, true);
-  await token.connect(treasury).transfer(preSale.address, BigNumber.from("270000000000000000000000"));
-  console.log("Done!");
-});
+    // TODO: REMOVE FOR PROD
+    await preSale.connect(treasury).setSoftCap(0);
+
+    console.log("Transferring 270k tokens to presale...");
+    await token.connect(treasury).transfer(preSale.address, BigNumber.from("270000000000000000000000"));
+
+    console.log("Opening up public sale...");
+    await preSale.connect(treasury).openPublicSale(true);
+
+    // TODO: REMOVE FOR PROD (buy 0.5 eth)
+    await preSale.connect(account1).buyTokens({ value: BigNumber.from("500000000000000000") });
+    console.log("Done!");
+  });
 
 task("finalise", "Finalise pre-sale")
   .addParam("address", "Token contract address")
@@ -122,11 +130,45 @@ task("finalise", "Finalise pre-sale")
     const [, treasury] = await hre.ethers.getSigners();
 
     console.log("Finalising public sale...");
-    // await preSale.connect(treasury).setSoftCap(0);
     await preSale.connect(treasury).finalizeSale();
+
+    console.log("Launching token...");
     await token.connect(treasury).launchToken();
-    await safeExit.connect(treasury).setRandomSeed(123);
+
+    console.log("Launching Safe Exit NFT...");
+    await safeExit.connect(treasury).launchSafeExitNft(123);
+
     console.log("Done!");
+  });
+
+task("stuff", "Test stuff")
+  .addParam("address", "Token contract address")
+  .setAction(async (taskArgs, hre) => {
+    // get deployed token
+    const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
+    const token = await Token.attach(taskArgs.address);
+
+    const PreSale = await hre.ethers.getContractFactory("PreSale");
+    const preSale = PreSale.attach(await token.getPreSaleAddress());
+
+    const router = await hre.ethers.getContractAt("IDexRouter", await token.getRouter());
+
+    // get signers
+    const [, treasury] = await hre.ethers.getSigners();
+    const [, , account1] = await hre.ethers.getSigners();
+
+    // account1 buy 1 eth of tokens
+    // await token.connect(account1).transfer(treasury.address, 10);
+
+    await router.connect(account1).swapExactETHForTokens(
+      0, // min number of tokens
+      [await router.WETH(), token.address],
+      account1.address,
+      1659935367099,
+      { value: BigNumber.from("100000000000000000") }
+    );
+
+    // await token.connect(treasury).rebase();
   });
 
 task("setup", "Set up sub-contracts and DEX")

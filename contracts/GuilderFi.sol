@@ -208,13 +208,13 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
      */ 
     function rebase() public override {
         require(hasLaunched, "Token has not launched yet");
+        _rebase();
+    }
 
-        if (_inSwap || !hasLaunched) {
-            return;
-        }
-        
+    function _rebase() internal { 
         // work out how many rebases to perform
         uint256 times = pendingRebases();
+        
         if (times == 0) {
             return;
         }
@@ -238,7 +238,9 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         _gonsPerFragment = TOTAL_GONS.div(_totalSupply);
         lastRebaseTime = lastRebaseTime.add(times.mul(REBASE_FREQUENCY));
 
-        _pair.sync();
+        if (!_inSwap) {
+            _pair.sync();
+        }
 
         emit LogRebase(lastEpoch, _totalSupply, pendingRebases());
     }
@@ -303,17 +305,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         if (_isContract[recipient]) return true;
         if (sender == address(_router) || recipient == address(_router)) return true;
         if (swapEngine.inSwap() || autoLiquidityEngine.inSwap()) return true;
-        
-        /*
-        if (sender == address(_pair)) {
-            return _isContract[recipient];
-        }
-        
-        if (recipient == address(_pair)) {
-            return _isContract[sender];
-        }
-        */
-
         return false;
     }
 
@@ -324,9 +315,8 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         if (shouldDoBasicTransfer(sender, recipient)) {
             return _basicTransfer(sender, recipient, amount);
         }
-        else {
-            preTransactionActions(sender, recipient, amount);
-        }
+        
+        preTransactionActions(sender, recipient, amount);
         
         uint256 gonAmount = amount.mul(_gonsPerFragment);
         uint256 gonAmountReceived = gonAmount;
@@ -343,6 +333,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
             recipient,
             gonAmountReceived.div(_gonsPerFragment)
         );
+
         return true;
     }
 
@@ -368,7 +359,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         }
 
         if (shouldRebase()) {
-            rebase();
+            _rebase();
         }
     }
 
@@ -459,7 +450,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         return
             isAutoSafeExitEnabled &&
             _safeExitFundAddress != address(0);
-            // safeExitFund.balanceOf(msg.sender) > 0;
     }
 
     /*
@@ -492,16 +482,10 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     function setAutoLiquidity(bool _flag) external override onlyOwner {
         isAutoLiquidityEnabled = _flag;
-        if(_flag) {
-            lastAddLiquidityTime = block.timestamp;
-        }
     }
 
     function setAutoRebase(bool _flag) override external onlyOwner {
         isAutoRebaseEnabled = _flag;
-        if (_flag) {
-            lastRebaseTime = block.timestamp;
-        }
     }
 
     function setAutoSafeExit(bool _flag) external override onlyOwner {

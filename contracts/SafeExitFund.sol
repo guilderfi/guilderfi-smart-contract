@@ -340,7 +340,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   /**
    * Launch Safe Exit - reveal all NFT packages using a random seed
    */
-  function setRandomSeed(uint256 _randomSeed) external override onlyTokenOwner {
+  function launchSafeExitNft(uint256 _randomSeed) external override onlyTokenOwner {
     // can only be called once
     if (!randomSeedHasBeenSet) {
       randomSeed = _randomSeed;

@@ -45,7 +45,7 @@ contract PreSale is IPreSale {
   mapping(uint256 => uint256) private _saleCaps;
   mapping(uint256 => uint256) private _saleCloseDates;
 
-  uint256 private _softCap = 0.001 ether;
+  uint256 private _softCap = 1500 ether;
   uint256 private _lockDuration = 30 days;
 
   // flags
