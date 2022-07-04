@@ -32,6 +32,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     uint256 maxInsuranceAmount;
     string metadataUriLive;
     string metadataUriReady;
+    string metadataUriDead;
   }
 
   struct PackageChancePercentage {
@@ -51,7 +52,6 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
   // metadata uri's
   string private _unrevealedMetadataUri = "";
-  string private _usedMetadataUri = "";
 
   // lottery
   bool private randomSeedHasBeenSet = false;
@@ -98,16 +98,18 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     token = IGuilderFi(tokenAddress);
 
     // Set max insurance amount of each NFT package
-    packages[1] = Package(1, 25 ether, "", "");
-    packages[2] = Package(2, 10 ether, "", "");
-    packages[3] = Package(3, 5 ether, "", "");
-    packages[4] = Package(4, 2 ether, "", "");
+    packages[1] = Package(1, 100 ether, "", "", "");
+    packages[2] = Package(2, 25 ether, "", "", "");
+    packages[3] = Package(3, 10 ether, "", "", "");
+    packages[4] = Package(4, 5 ether, "", "", "");
+    packages[5] = Package(5, 1 ether, "", "", "");
 
     // Set % chances of receiving each NFT package
-    packageChances.push(PackageChancePercentage(1, 25));
-    packageChances.push(PackageChancePercentage(2, 25));
-    packageChances.push(PackageChancePercentage(3, 25));
-    packageChances.push(PackageChancePercentage(4, 25));    
+    packageChances.push(PackageChancePercentage(1, 20));
+    packageChances.push(PackageChancePercentage(2, 20));
+    packageChances.push(PackageChancePercentage(3, 20));
+    packageChances.push(PackageChancePercentage(4, 20));
+    packageChances.push(PackageChancePercentage(5, 20));
   }
 
   /**
@@ -138,7 +140,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     (uint256 ethReserves, uint256 tokenReserves) = getLiquidityPoolReserves();
     
     // calculate eth spent based on current liquidity pool reserves
-    uint256 ethSpent = _tokenAmount.mul(ethReserves).div(tokenReserves);
+    uint256 ethSpent = _tokenAmount.mul(ethReserves).div(tokenReserves - _tokenAmount);
 
     purchaseAmount[_walletAddress] = purchaseAmount[_walletAddress].add(ethSpent);
   }
@@ -187,7 +189,6 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
   function mint(address _walletAddress, uint256 _maxInsuranceAmount) external override onlyTokenOwner {
     uint256 tokenId = _tokenId.current();
-    require(tokenId < _maxSupply, "Cannot mint more NFTs");
     _mint(_walletAddress, tokenId);
     _customLimit[tokenId] = _maxInsuranceAmount;
     _tokenId.increment();
@@ -198,7 +199,6 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
    */
   function maxSupply() public override view returns (uint256) { return _maxSupply; }
   function unrevealedMetadataUri() public override view returns (string memory) { return _unrevealedMetadataUri; }
-  function usedMetadataUri() public override view returns (string memory) { return _usedMetadataUri; }
   function activationDate() public override view returns (uint256) { return _activationDate; }
   function issuedTokens() public override view returns (uint256) { return _tokenId.current(); }
 
@@ -209,11 +209,9 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
       return _unrevealedMetadataUri;
     }
 
-    if (isUsed[_nftId]) {
-      return _usedMetadataUri;
-    }
+    (, , string memory metadataUriLive, string memory metadataUriReady, string memory metadataUriDead) = getPackage(_nftId);
 
-    (, , string memory metadataUriLive, string memory metadataUriReady) = getPackage(_nftId);
+    if (isUsed[_nftId]) return metadataUriDead;
 
     (, , , , uint256 finalPayoutAmount) = getInsuranceStatus(ownerOf(_nftId));
 
@@ -229,7 +227,8 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     uint256 packageId,
     uint256 maxInsuranceAmount,
     string memory metadataUriLive,
-    string memory metadataUriReady
+    string memory metadataUriReady,
+    string memory metadataUriDead
   ) {
     // using timestamp salt & random seed & nftId we get a pseudo random number between 0 and 99
     uint256 randomNum = uint256(keccak256(abi.encodePacked(timestampSalt, randomSeed, _nftId))) % 100;
@@ -248,8 +247,9 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         maxInsuranceAmount = package.maxInsuranceAmount;
         metadataUriLive = package.metadataUriLive;
         metadataUriReady = package.metadataUriReady;
+        metadataUriDead = package.metadataUriDead;
 
-        return (packageId, maxInsuranceAmount, metadataUriLive, metadataUriReady);
+        return (packageId, maxInsuranceAmount, metadataUriLive, metadataUriReady, metadataUriDead);
       }
 
       rangeFrom += packageChances[i].chancePercentage;
@@ -260,6 +260,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     maxInsuranceAmount = 0;
     metadataUriLive = "";
     metadataUriReady = "";
+    metadataUriDead = "";
   }
 
   function getInsuranceStatus(address _walletAddress) public override view nftsRevealed returns (
@@ -298,7 +299,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
         }
         else {
           // if not override, use package data
-          (, uint256 maxInsuranceAmount,, ) = getPackage(nftId);
+          (, uint256 maxInsuranceAmount,,, ) = getPackage(nftId);
           totalInsurance = totalInsurance.add(maxInsuranceAmount);
         }
       }
@@ -343,18 +344,14 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     _customLimit[_nftId] = _limit;
   }
 
-  function setMetadataUri(uint256 _packageId, string memory _uriLive, string memory _uriReady) external override onlyTokenOwner {
-    require(_packageId <= 4, "NFT package index not found"); // TODO - fix
+  function setMetadataUri(uint256 _packageId, string memory _uriLive, string memory _uriReady, string memory _uriDead) external override onlyTokenOwner {
     packages[_packageId].metadataUriLive = _uriLive;
     packages[_packageId].metadataUriReady = _uriReady;
+    packages[_packageId].metadataUriDead = _uriDead;
   }
 
   function setUnrevealedMetadataUri(string memory _uri) external override onlyTokenOwner {
     _unrevealedMetadataUri = _uri;
-  }
-  
-  function setUsedMetadataUri(string memory _uri) external override onlyTokenOwner {
-    _usedMetadataUri = _uri;
   }
 
   function setActivationDate(uint256 _date) external override onlyTokenOwnerOrPresale {

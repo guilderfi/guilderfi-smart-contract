@@ -105,8 +105,8 @@ describe(`Testing safe exit..`, function () {
 
   it("Should fill the NFTs with each purchase during pre-sale", async function () {
     // buy fixed amount
-    await preSale.connect(treasury).openWhitelistSale(4, true);
-    await preSale.connect(treasury).addToWhitelist([account6.address], 4);
+    // await preSale.connect(treasury).openWhitelistSale(4, true);
+    // await preSale.connect(treasury).addToWhitelist([account6.address], 4);
     await preSale.connect(account6).buyTokens({ value: ether(1) });
 
     // finalise sale
@@ -123,12 +123,20 @@ describe(`Testing safe exit..`, function () {
     const account6ethBalanceBefore = await ethers.provider.getBalance(account6.address);
 
     // claim safe exit
+    try {
+      await safeExit.connect(account6).claimSafeExit();
+    } catch (error) {
+      expect(error.message).to.contain("SafeExit not available yet");
+    }
+    await safeExit.connect(treasury).setActivationDate(0);
+
     const tx = await safeExit.connect(account6).claimSafeExit();
     const gas = await gasUsed(tx);
 
     // check eth balance has increased by correct amount
     const account6ethBalanceAfter = await ethers.provider.getBalance(account6.address);
     const account6ethPayout = account6ethBalanceAfter.sub(account6ethBalanceBefore);
+
     expect(account6ethPayout).to.equal(ether(1.0625).sub(gas)); // account for gas
     expect(await token.balanceOf(account6.address)).to.equal(0);
   });

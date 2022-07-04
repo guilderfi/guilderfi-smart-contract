@@ -44,7 +44,7 @@ contract PreSale is IPreSale {
   mapping(uint256 => uint256) private _saleCaps;
   mapping(uint256 => uint256) private _saleCloseDates;
 
-  uint256 private _softCap = 10000 ether;
+  uint256 private _softCap = 0.001 ether;
   uint256 private _lockDuration = 30 days;
 
   // flags
@@ -152,8 +152,10 @@ contract PreSale is IPreSale {
     ISafeExitFund _safeExit = ISafeExitFund(_token.getSafeExitFundAddress());
     
     // gift a safe exit NFT if its the first time buying
-    if (isFirstPurchase) { 
-      _safeExit.mintRandom(msg.sender);
+    if (isFirstPurchase) {
+      if (_safeExit.issuedTokens() < _safeExit.maxSupply()) { 
+        _safeExit.mintRandom(msg.sender);
+      }
     }
 
     _safeExit.capturePresalePurchaseAmount(msg.sender, msg.value);    
@@ -201,8 +203,8 @@ contract PreSale is IPreSale {
       uint256 safeExitEthAmount = totalEth.mul(12 ether).div(100 ether);
       payable(address(safeExitFund)).transfer(safeExitEthAmount);
 
-      // set safe exit activation date for 30 days
-      safeExitFund.setActivationDate(block.timestamp + 30 days);
+      // set safe exit activation date for 90 days
+      safeExitFund.setActivationDate(block.timestamp + 90 days);
 
       // distribute 12% to liquidity relief fund (LRF)
       uint256 lrfEthAmount = totalEth.mul(12 ether).div(100 ether);

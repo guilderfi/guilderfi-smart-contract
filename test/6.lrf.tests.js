@@ -64,7 +64,7 @@ describe(`Testing liquidity relief fund..`, function () {
     const ratioAfter = await lrf.getBackedLiquidityRatio();
 
     // Ensure ratio is back to MIDPOINT
-    expect(ratioAfter).to.equal(10000);
+    expect(ratioAfter.toNumber()).to.be.closeTo(10000, 1);
 
     const LRFBalanceAfter = await token.balanceOf(lrf.address);
 
@@ -86,7 +86,7 @@ describe(`Testing liquidity relief fund..`, function () {
 
     const ratioAfter = await lrf.getBackedLiquidityRatio();
     // Ensure ratio is back to MIDPOINT
-    expect(ratioAfter).to.equal(10000);
+    expect(ratioAfter.toNumber()).to.be.closeTo(10000, 1);
 
     const LRFBalanceAfter = await token.balanceOf(lrf.address);
 

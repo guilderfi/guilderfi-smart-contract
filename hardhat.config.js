@@ -241,6 +241,73 @@ task("verify-all", "Verify all contracts on etherscan")
     await verify(hre, preSaleAddress, [token.address]);
   });
 
+task("setup-metadata", "Set URI x SafeExit Metadata")
+  .addParam("address", "Token contract address")
+  .setAction(async (taskArgs, hre) => {
+    const [, treasury] = await hre.ethers.getSigners();
+
+    const Token = await hre.ethers.getContractFactory(TOKEN_NAME);
+    const token = await Token.attach(taskArgs.address);
+
+    const SafeExit = await hre.ethers.getContractFactory("SafeExitFund");
+    const safeExit = SafeExit.attach(await token.getSafeExitFundAddress()).connect(treasury);
+
+    const IPFS_GATEWAY = "http://ipfs.io/";
+    const IPFS_CID = "QmXUZwED1bX3HkibXBbvDNpAvBSqe3ueWkUYUFMdX319ZK";
+
+    const metadataUris = {
+      preReveal: "ipfs/" + IPFS_CID + "/SAFE_EXIT_PRE_REVEAL.json",
+      tier1live: "ipfs/" + IPFS_CID + "/Tier_1_LIVE_State_100_BNB.json",
+      tier1ready: "ipfs/" + IPFS_CID + "/Tier_1_Ready_State_100_BNB.json",
+      tier1dead: "ipfs/" + IPFS_CID + "/Tier_1_Used_State_100_BNB.json",
+      tier2live: "ipfs/" + IPFS_CID + "/Tier_2_LIVE_State_25_BNB.json",
+      tier2ready: "ipfs/" + IPFS_CID + "/Tier_2_Ready_State_25_BNB.json",
+      tier2dead: "ipfs/" + IPFS_CID + "/Tier_2_Used_State_25_BNB.json",
+      tier3live: "ipfs/" + IPFS_CID + "/Tier_3_LIVE_State_10_BNB.json",
+      tier3ready: "ipfs/" + IPFS_CID + "/Tier_3_Ready_State_10_BNB.json",
+      tier3dead: "ipfs/" + IPFS_CID + "/Tier_3_Used_State_10_BNB.json",
+      tier4live: "ipfs/" + IPFS_CID + "/Tier_4_LIVE_State_5_BNB.json",
+      tier4ready: "ipfs/" + IPFS_CID + "/Tier_4_Ready_State_5_BNB.json",
+      tier4dead: "ipfs/" + IPFS_CID + "/Tier_4_Used_State_5_BNB.json",
+      tier5live: "ipfs/" + IPFS_CID + "/Tier_5_LIVE_State_1_BNB.json",
+      tier5ready: "ipfs/" + IPFS_CID + "/Tier_5_Ready_State_1_BNB.json",
+      tier5dead: "ipfs/" + IPFS_CID + "/Tier_5_Used_State_1_BNB.json",
+    };
+
+    await safeExit.setUnrevealedMetadataUri(IPFS_GATEWAY + metadataUris.preReveal);
+
+    await safeExit.setMetadataUri(
+      1,
+      IPFS_GATEWAY + metadataUris.tier1live,
+      IPFS_GATEWAY + metadataUris.tier1ready,
+      IPFS_GATEWAY + metadataUris.tier1dead
+    );
+    await safeExit.setMetadataUri(
+      2,
+      IPFS_GATEWAY + metadataUris.tier2live,
+      IPFS_GATEWAY + metadataUris.tier2ready,
+      IPFS_GATEWAY + metadataUris.tier2dead
+    );
+    await safeExit.setMetadataUri(
+      3,
+      IPFS_GATEWAY + metadataUris.tier3live,
+      IPFS_GATEWAY + metadataUris.tier3ready,
+      IPFS_GATEWAY + metadataUris.tier3dead
+    );
+    await safeExit.setMetadataUri(
+      4,
+      IPFS_GATEWAY + metadataUris.tier4live,
+      IPFS_GATEWAY + metadataUris.tier4ready,
+      IPFS_GATEWAY + metadataUris.tier4dead
+    );
+    await safeExit.setMetadataUri(
+      5,
+      IPFS_GATEWAY + metadataUris.tier5live,
+      IPFS_GATEWAY + metadataUris.tier5ready,
+      IPFS_GATEWAY + metadataUris.tier5dead
+    );
+  });
+
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
