@@ -130,6 +130,11 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         require(to != address(0x0), "Cannot send to zero address");
         _;
     }
+    
+    modifier canTrade(address from) {
+        require(hasLaunched || from == address(_treasuryAddress), "Token has not launched yet");
+        _;
+    }
 
     constructor() Ownable() {
         // init treasury address
@@ -273,6 +278,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     function transfer(address to, uint256 value) external
         override(IGuilderFi, IERC20)
         validRecipient(to)
+        canTrade(msg.sender)
         returns (bool) {
         
         _transferFrom(msg.sender, to, value);
@@ -282,6 +288,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     function transferFrom(address from, address to, uint256 value) external
         override(IGuilderFi, IERC20)
         validRecipient(to)
+        canTrade(from)
         returns (bool) {
 
         if (_allowedFragments[from][msg.sender] != type(uint256).max) {

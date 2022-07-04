@@ -67,6 +67,8 @@ describe(`Testing safe exit..`, function () {
       tokenAmount,
       ethAmount,
     });
+
+    await token.connect(treasury).launchToken();
   });
 
   it("Should mint correct number of NFTs with each purchase", async function () {

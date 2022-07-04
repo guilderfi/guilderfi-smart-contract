@@ -34,6 +34,7 @@ describe(`Testing pre-sale refund scenario..`, function () {
 
     // setup custom sales tiers
     await preSale.connect(treasury).addCustomTier(tier1.tierId, tier1.minAmount, tier1.maxAmount, tier1.tokensPerEth);
+    await token.connect(treasury).launchToken();
   });
 
   it("Should allow users to claim redunds when sale is cancelled", async function () {

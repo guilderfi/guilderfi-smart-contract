@@ -99,6 +99,47 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     expect(await token.balanceOf(account1.address)).to.equal(ether(1000));
   });
 
+  it("Should prevent transfering tokens if the token has not launched yet", async function () {
+    try {
+      await transferTokens({ token, from: account1, to: account2, amount: ether(10) });
+    } catch (error) {
+      expect(error.message).to.contain("Token has not launched yet");
+    }
+  });
+
+  it("Should prevent adding liquidity if the token has not launched yet", async function () {
+    const tokenAmount = ether(10);
+    const ethAmount = ether(0.001);
+
+    try {
+      await addLiquidity({
+        router,
+        from: account1,
+        token,
+        tokenAmount,
+        ethAmount,
+      });
+    } catch (error) {
+      expect(error.message).to.contain("transferFrom failed");
+    }
+  });
+
+  it("Should prevent buying from the DEX if the token has not launched yet", async function () {
+    try {
+      await buyTokensFromDex({ router, pair, token, account: account1, tokenAmount: ether(10) });
+    } catch (error) {
+      expect(error.message).to.contain("TRANSFER_FAILED");
+    }
+  });
+
+  it("Should prevent selling tokens to the DEX if the token has not launched yet", async function () {
+    try {
+      await sellTokens({ router, token, account: account1, tokenAmount: ether(10) });
+    } catch (error) {
+      expect(error.message).to.contain("transferFrom failed");
+    }
+  });
+
   it("Should open up trading and allow accounts to transact", async function () {
     // await token.connect(treasury).openTrade();
     await token.connect(treasury).launchToken();
