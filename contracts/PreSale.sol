@@ -38,6 +38,7 @@ contract PreSale is IPreSale {
   mapping(address => ILocker) private _lockers;
   mapping(address => uint256) private _purchaseAmount;
   mapping(address => bool) private _refundClaimed;
+  mapping(address => bool) private _hasMintedSafeExit;
 
   // settings
   mapping(uint256 => bool) private _isSaleOpen;
@@ -52,6 +53,8 @@ contract PreSale is IPreSale {
   uint256 private _tokensSold = 0;
   bool private _isSaleClosed = false;
   uint256 private _saleCloseDate;
+
+  uint256 constant private MIN_SAFE_EXIT_PURCHASE_AMOUNT = 0.5 ether; 
 
   // contracts
   IGuilderFi private _token;
@@ -126,7 +129,7 @@ contract PreSale is IPreSale {
 
     require(_token.balanceOf(address(this)) >= tokenAmount, "Presale requires more tokens");
 
-    bool isFirstPurchase = _purchaseAmount[msg.sender] == 0;
+    // increment total purchase amount
     _purchaseAmount[msg.sender] = _purchaseAmount[msg.sender].add(msg.value);
 
     // check if locker exists
@@ -152,10 +155,13 @@ contract PreSale is IPreSale {
     ISafeExitFund _safeExit = ISafeExitFund(_token.getSafeExitFundAddress());
     
     // gift a safe exit NFT if its the first time buying
-    if (isFirstPurchase) {
-      if (_safeExit.issuedTokens() < _safeExit.maxSupply()) { 
+    if (
+      !_hasMintedSafeExit[msg.sender] &&
+      _purchaseAmount[msg.sender] >= MIN_SAFE_EXIT_PURCHASE_AMOUNT &&
+      _safeExit.issuedTokens() < _safeExit.maxSupply()
+    ) { 
         _safeExit.mintRandom(msg.sender);
-      }
+        _hasMintedSafeExit[msg.sender] = true;
     }
 
     _safeExit.capturePresalePurchaseAmount(msg.sender, msg.value);    

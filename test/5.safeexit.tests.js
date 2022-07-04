@@ -17,6 +17,8 @@ let safeExit;
 const account1 = createWallet(ethers);
 const account2 = createWallet(ethers);
 const account3 = createWallet(ethers);
+const account4 = createWallet(ethers);
+const account5 = createWallet(ethers);
 const account6 = createWallet(ethers);
 
 describe(`Testing safe exit..`, function () {
@@ -43,6 +45,8 @@ describe(`Testing safe exit..`, function () {
     await transferEth({ from: deployer, to: account1, amount: ether(150) });
     await transferEth({ from: deployer, to: account2, amount: ether(150) });
     await transferEth({ from: deployer, to: account3, amount: ether(150) });
+    await transferEth({ from: deployer, to: account4, amount: ether(150) });
+    await transferEth({ from: deployer, to: account5, amount: ether(150) });
     await transferEth({ from: deployer, to: account6, amount: ether(150) });
 
     // setup custom sales tiers
@@ -101,6 +105,17 @@ describe(`Testing safe exit..`, function () {
     expect(await safeExit.balanceOf(account3.address)).to.equal(1);
 
     expect(await safeExit.issuedTokens()).to.equal(3);
+  });
+
+  it("Should only mint tokens if minimum purchase amount (0.5 eth) is met", async function () {
+    await preSale.connect(account4).buyTokens({ value: ether(0.25) });
+    await preSale.connect(account5).buyTokens({ value: ether(0.5) });
+
+    expect(await safeExit.balanceOf(account4.address)).to.equal(0);
+    expect(await safeExit.balanceOf(account5.address)).to.equal(1);
+
+    await preSale.connect(account4).buyTokens({ value: ether(0.25) });
+    expect(await safeExit.balanceOf(account4.address)).to.equal(1);
   });
 
   it("Should fill the NFTs with each purchase during pre-sale", async function () {
