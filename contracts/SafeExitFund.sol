@@ -100,12 +100,51 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   constructor(address tokenAddress) ERC721("GuilderFi Safe Exit", "SAFEEXIT") {
     token = IGuilderFi(tokenAddress);
 
-    // Set max insurance amount of each NFT package
-    packages[1] = Package(1, "Noble", 100 ether, "", "", "");
-    packages[2] = Package(2, "Artisan", 25 ether, "", "", "");
-    packages[3] = Package(3, "Clergy", 10 ether, "", "", "");
-    packages[4] = Package(4, "Merchant", 5 ether, "", "", "");
-    packages[5] = Package(5, "Guilder", 1 ether, "", "", "");
+    // Set up initial NFT packages
+    packages[1] = Package(
+      1,
+      "Noble",
+      100 ether,
+      "https://assets.guilderfi.io/safeexit/noble/active.json",
+      "https://assets.guilderfi.io/safeexit/noble/ready.json",
+      "https://assets.guilderfi.io/safeexit/noble/dead.json"
+    );
+
+    packages[2] = Package(
+      2,
+      "Artisan",
+      25 ether,
+      "https://assets.guilderfi.io/safeexit/artisan/active.json",
+      "https://assets.guilderfi.io/safeexit/artisan/ready.json",
+      "https://assets.guilderfi.io/safeexit/artisan/dead.json"
+    );
+
+    packages[3] = Package(
+      3,
+      "Clergy",
+      10 ether,
+      "https://assets.guilderfi.io/safeexit/clergy/active.json",
+      "https://assets.guilderfi.io/safeexit/clergy/ready.json",
+      "https://assets.guilderfi.io/safeexit/clergy/dead.json"
+    );
+
+    packages[4] = Package(
+      4,
+      "Merchant",
+      5 ether,
+      "https://assets.guilderfi.io/safeexit/merchant/active.json",
+      "https://assets.guilderfi.io/safeexit/merchant/ready.json",
+      "https://assets.guilderfi.io/safeexit/merchant/dead.json"
+    );
+
+    packages[5] = Package(
+      5,
+      "Guilder",
+      1 ether,
+      "https://assets.guilderfi.io/safeexit/guilder/active.json",
+      "https://assets.guilderfi.io/safeexit/guilder/ready.json",
+      "https://assets.guilderfi.io/safeexit/guilder/dead.json"
+    );
 
     // Set % chances of receiving each NFT package
     packageChances.push(PackageChancePercentage(1, 1));
