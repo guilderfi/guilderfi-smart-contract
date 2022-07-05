@@ -16,7 +16,6 @@ interface ISafeExitFund {
 
   // Public getter functions
   function maxSupply() external view returns (uint256);
-  function unrevealedMetadataUri() external view returns (string memory);
   function activationDate() external view returns (uint256);
   function tokenURI(uint256 _nftId) external view returns (string memory);
   function issuedTokens() external view returns (uint256);
@@ -54,5 +53,4 @@ interface ISafeExitFund {
   function setMaxSupply(uint256 newMaxSupply) external;
   
   function withdraw(uint256 amount) external;
-  function withdrawTokens(address _tokenAddress, uint256 amount) external;
 }

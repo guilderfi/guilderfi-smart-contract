@@ -12,6 +12,11 @@ const ether = (num) => {
   return BigNumber.from(numString.replace(".", "")).mul(BigNumber.from(10).pow(DECIMALS - decimals));
 };
 
+const weiToEthNumber = (num) => {
+  const numString = num.toString();
+  return Number(ethers.utils.formatEther(BigNumber.from(numString)));
+};
+
 const print = (msg) => {
   console.log(clc.xterm(8)("      " + msg));
 };
@@ -27,4 +32,5 @@ module.exports = {
   ether,
   print,
   createWallet,
+  weiToEthNumber,
 };

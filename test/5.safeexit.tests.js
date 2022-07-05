@@ -2,15 +2,14 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 const { deploy } = require("../helpers/deploy");
-const { MAX_INT, ether, print, createWallet } = require("../helpers/utils");
-const { transferTokens, transferEth, buyTokensFromDexByExactEth, addLiquidity, gasUsed, getLiquidityReserves } = require("../helpers");
+const { MAX_INT, ether, print, createWallet, weiToEthNumber } = require("../helpers/utils");
+const { transferTokens, transferEth, buyTokensFromDexByExactEth, addLiquidity, gasUsed, sellTokens } = require("../helpers");
 const { tier1, tier2, tier3 } = require("../helpers/data");
 
 let token;
 let deployer;
 let treasury;
 let router;
-let pair;
 let preSale;
 let safeExit;
 
@@ -20,6 +19,9 @@ const account3 = createWallet(ethers);
 const account4 = createWallet(ethers);
 const account5 = createWallet(ethers);
 const account6 = createWallet(ethers);
+const account7 = createWallet(ethers);
+
+const DEAD = ethers.utils.getAddress("0x000000000000000000000000000000000000dEaD");
 
 describe(`Testing safe exit..`, function () {
   before(async function () {
@@ -31,7 +33,6 @@ describe(`Testing safe exit..`, function () {
 
     // contracts
     router = await ethers.getContractAt("IDexRouter", await token.getRouter());
-    pair = await ethers.getContractAt("IDexPair", await token.getPair());
     preSale = await ethers.getContractAt("PreSale", await token.getPreSaleAddress());
     safeExit = await ethers.getContractAt("SafeExitFund", await token.getSafeExitFundAddress());
 
@@ -48,6 +49,7 @@ describe(`Testing safe exit..`, function () {
     await transferEth({ from: deployer, to: account4, amount: ether(150) });
     await transferEth({ from: deployer, to: account5, amount: ether(150) });
     await transferEth({ from: deployer, to: account6, amount: ether(150) });
+    await transferEth({ from: deployer, to: account7, amount: ether(150) });
 
     // setup custom sales tiers
     await preSale.connect(treasury).addCustomTier(tier1.tierId, tier1.minAmount, tier1.maxAmount, tier1.tokensPerEth);
@@ -70,10 +72,9 @@ describe(`Testing safe exit..`, function () {
   });
 
   it("Should mint correct number of NFTs with each purchase", async function () {
-    // check each tier1,2,3,public sale receives an NFT
-    // open sale
     expect(await safeExit.issuedTokens()).to.equal(0);
 
+    // check each tier1,2,3,public sale receives an NFT
     await preSale.connect(treasury).openPublicSale(true);
     await preSale.connect(treasury).openWhitelistSale(1, true);
     await preSale.connect(treasury).openWhitelistSale(2, true);
@@ -116,12 +117,13 @@ describe(`Testing safe exit..`, function () {
 
     await preSale.connect(account4).buyTokens({ value: ether(0.25) });
     expect(await safeExit.balanceOf(account4.address)).to.equal(1);
+
+    await safeExit.connect(treasury).setUnrevealedMetadataUri("PRESALE");
+    expect(await safeExit.tokenURI(await safeExit.tokenOfOwnerByIndex(account4.address, 0))).to.equal("PRESALE");
   });
 
   it("Should fill the NFTs with each purchase during pre-sale", async function () {
     // buy fixed amount
-    // await preSale.connect(treasury).openWhitelistSale(4, true);
-    // await preSale.connect(treasury).addToWhitelist([account6.address], 4);
     await preSale.connect(account6).buyTokens({ value: ether(1) });
 
     // finalise sale
@@ -138,16 +140,28 @@ describe(`Testing safe exit..`, function () {
     // check previous eth balance
     const account6ethBalanceBefore = await ethers.provider.getBalance(account6.address);
 
+    // check payout amount
+    expect((await safeExit.getInsuranceStatus(account6.address)).totalPurchaseAmount).to.equal(ether(1));
+
     // claim safe exit
-    let txRejectedGasUsed = 0;
+    const txRejectedGasUsed = 0;
+    // let txRejectedGasUsed = 0;
+    /*
     try {
       const txRejected = await safeExit.connect(account6).claimSafeExit();
       txRejectedGasUsed = await gasUsed(txRejected);
     } catch (error) {
       expect(error.message).to.contain("SafeExit not available yet");
     }
+    */
+
+    // payout amount should remain unchanged
+    expect((await safeExit.getInsuranceStatus(account6.address)).totalPurchaseAmount).to.equal(ether(1));
+
+    // enable safe exit
     await safeExit.connect(treasury).setActivationDate(0);
 
+    // do a claim
     const tx = await safeExit.connect(account6).claimSafeExit();
     const gas = await gasUsed(tx);
 
@@ -159,10 +173,12 @@ describe(`Testing safe exit..`, function () {
     expect(await token.balanceOf(account6.address)).to.equal(0);
   });
 
-  it("Should fill NFTs during post-sale when buying from exchange", async function () {
-    // create random wallet and fund with 10 ether
+  it("Should fill NFTs during post-sale when buying tokens from exchange", async function () {
+    const PURCHASE_AMOUNT = 10;
+
+    // create random wallet and fund with ether
     const wallet = ethers.Wallet.createRandom().connect(ethers.provider);
-    await transferEth({ from: deployer, to: wallet, amount: ether(10) });
+    await transferEth({ from: deployer, to: wallet, amount: ether(PURCHASE_AMOUNT + 1) }); // +1 for gas
 
     // check eth balance before buying from exchange
     expect(await token.balanceOf(wallet.address)).to.equal(0);
@@ -170,74 +186,127 @@ describe(`Testing safe exit..`, function () {
     // check eth balance before buying from exchange
     const ethBalanceBeforeBuy = await ethers.provider.getBalance(wallet.address);
 
-    // buy exact amount of eth worth of tokens from exchange
-    const tx = await buyTokensFromDexByExactEth({ router, token, account: wallet, ethAmount: ether(1) });
-    // const tx = await buyTokensFromDex({ router, pair, token, account: wallet, tokenAmount: ether(1) });
+    // buy 1 eth worth of tokens from exchange
+    const tx = await buyTokensFromDexByExactEth({ router, token, account: wallet, ethAmount: ether(PURCHASE_AMOUNT) });
     const gas = await gasUsed(tx);
-
-    print(`Tokens received: ${ethers.utils.formatEther(await token.balanceOf(wallet.address))}`);
-
-    const { ethReserves, tokenReserves } = await getLiquidityReserves({ token, pair });
-    print(`LP - eth:         ${ethers.utils.formatEther(ethReserves, { comify: true })}`);
-    print(`LP - tokens:      ${ethers.utils.formatEther(tokenReserves, { comify: true })}`);
 
     // check eth balance has reduced by 0.5 eth
     const ethBalanceAfterBuy = await ethers.provider.getBalance(wallet.address);
     const ethSpent = ethBalanceBeforeBuy.sub(ethBalanceAfterBuy);
-    expect(ethSpent).to.equal(ether(1).add(gas)); // account for gas
+    expect(ethSpent).to.equal(ether(PURCHASE_AMOUNT).add(gas)); // account for gas
 
-    const status = await safeExit.connect(wallet).getInsuranceStatus(wallet.address);
-    print(`Eth Purchases recorded: ${ethers.utils.formatEther(status.totalPurchaseAmount)})`);
+    const insuranceStatus = await safeExit.connect(wallet).getInsuranceStatus(wallet.address);
+    const totalPurchaseAmount = weiToEthNumber(insuranceStatus.totalPurchaseAmount);
+    expect(totalPurchaseAmount).to.be.closeTo(PURCHASE_AMOUNT, PURCHASE_AMOUNT * 0.002); // within 0.2% accuracy
   });
 
-  /*
-  it("Should fill NFTs during post-sale when buying from exchange", async function () {
-    // check eth balance before buying from exchange
-    const ethBalanceBeforeBuy = await ethers.provider.getBalance(account7.address);
-
-    console.log(await token.balanceOf(account7.address));
-    // buy exact amount of eth worth of tokens from exchange
-    const tx = await buyTokensFromDexByExactEth({ router, token, account: account7, ethAmount: ether(0.5) });
-    const gas = await gasUsed(tx);
-
-    console.log(await token.balanceOf(account7.address));
-
-    const { ethReserves, tokenReserves } = await getLiquidityReserves({ token, pair });
-    console.log(`LP - eth:         ${ethers.utils.formatEther(ethReserves, { comify: true })}`);
-    console.log(`LP - tokens:      ${ethers.utils.formatEther(tokenReserves, { comify: true })}`);
-
-    // check eth balance has reduced by 0.5 eth
-    const ethBalanceAfterBuy = await ethers.provider.getBalance(account7.address);
-    const ethSpent = ethBalanceBeforeBuy.sub(ethBalanceAfterBuy).sub(gas);
-    expect(ethSpent).to.equal(ether(0.5)); // account for gas
-
-    // check previous eth balance before safe exit
-    const ethBalanceBeforeSafeExit = await ethers.provider.getBalance(account7.address);
-    const status = await safeExit.connect(account7).getInsuranceStatus(account7.address);
-    console.log(status);
-
-    // claim safe exit
-    const txSafeExit = await safeExit.connect(account7).claimSafeExit();
-    const gasSafeExit = await gasUsed(txSafeExit);
-
-    // check eth balance has increased by correct amount (0.5 + 0.5) = 1 + premium (6.25)
-    const ethBalanceAfterSafeExit = await ethers.provider.getBalance(account7.address);
-    const ethPayout = ethBalanceAfterSafeExit.sub(ethBalanceBeforeSafeExit).add(gasSafeExit);
-    // expect(ethPayout).to.equal(ether(1.0625).sub(gasSafeExit)); // account for gas
-  });
-  */
-  /*
   it("Should clear NFT balance when transferred to another wallet", async function () {
-    // buy tokens
-    // check balance increases
+    const insuranceStatusBeforeSell = await safeExit.getInsuranceStatus(account2.address);
+    const totalPurchaseAmountBeforeSell = weiToEthNumber(insuranceStatusBeforeSell.totalPurchaseAmount);
+    expect(totalPurchaseAmountBeforeSell).to.be.greaterThan(0);
+
+    // sell tokens
+    await token.connect(account2).approve(router.address, MAX_INT);
+    await sellTokens({ router, token, account: account2, tokenAmount: ether(1) });
+
+    // purchased/insured amount should reset to zero
+    const insuranceStatusAfterSell = await safeExit.getInsuranceStatus(account2.address);
+    const totalPurchaseAmountAfterSell = weiToEthNumber(insuranceStatusAfterSell.totalPurchaseAmount);
+    expect(totalPurchaseAmountAfterSell).to.equal(0);
   });
 
   it("Should allow user to claim safe exit using NFT", async function () {
-    // todo
-  });
-  */
+    // check status before claim
+    const insuranceStatusBeforeClaim = await safeExit.getInsuranceStatus(account3.address);
+    const totalPurchaseAmountBeforeClaim = weiToEthNumber(insuranceStatusBeforeClaim.totalPurchaseAmount);
+    expect(totalPurchaseAmountBeforeClaim).to.be.greaterThan(0);
 
-  // add tests for custom nft
-  // approve contract to do transferFrom before burning when doing a claim
-  // check metadata update
+    // calculate payout amount
+    const maxInsuranceAmount = weiToEthNumber(insuranceStatusBeforeClaim.maxInsuranceAmount);
+    const expectedPayout = Math.min(totalPurchaseAmountBeforeClaim, maxInsuranceAmount);
+
+    // check previous eth balance
+    const ethBalanceBefore = await ethers.provider.getBalance(account3.address);
+
+    // check locker
+    const lockerAddress = await preSale.locker(account3.address);
+    const lockerBalance = weiToEthNumber(await token.balanceOf(lockerAddress));
+    expect(lockerBalance).to.be.greaterThan(0);
+
+    // dead token balance
+    const deadTokenBalanceBefore = await token.balanceOf(DEAD);
+
+    // claim safe exit
+    const txApprove = await token.connect(account3).approve(safeExit.address, MAX_INT);
+    const gasApprove = await gasUsed(txApprove);
+
+    const tx = await safeExit.connect(account3).claimSafeExit();
+    const gas = await gasUsed(tx);
+
+    // check eth balance has increased by correct amount
+    const ethBalanceAfter = await ethers.provider.getBalance(account3.address);
+    const ethPayout = ethBalanceAfter.sub(ethBalanceBefore);
+
+    // expect to be rewarded amount + 6.25% premium
+    expect(ethPayout).to.equal(
+      ether(expectedPayout * 1.0625)
+        .sub(gas)
+        .sub(gasApprove)
+    ); // account for gas
+
+    // check burnt tokens
+    const deadTokenBalanceAfter = await token.balanceOf(DEAD);
+    const deadTokens = deadTokenBalanceAfter.sub(deadTokenBalanceBefore);
+    expect(weiToEthNumber(deadTokens)).to.be.greaterThan(0);
+
+    // check balances after
+    expect(await token.balanceOf(account3.address)).to.equal(ether(0));
+    expect(await token.balanceOf(lockerAddress)).to.equal(ether(0));
+  });
+
+  it("Should prevent user from claiming safe exit again", async function () {
+    expect(Number(await safeExit.balanceOf(account3.address))).to.be.greaterThan(0);
+    expect(Number((await safeExit.getInsuranceStatus(account3.address)).totalPurchaseAmount)).to.equal(0);
+
+    // buy some tokens
+    await buyTokensFromDexByExactEth({ router, token, account: account3, ethAmount: ether(1) });
+
+    // check if purchase/insurance amount increased
+    expect(Number((await safeExit.getInsuranceStatus(account3.address)).totalPurchaseAmount)).to.be.greaterThan(0);
+
+    // claim safe exit
+    try {
+      await safeExit.connect(account3).claimSafeExit();
+    } catch (error) {
+      expect(error.message).to.contain("Invalid payout amount");
+    }
+  });
+
+  it("Should allow for custom NFTs", async function () {
+    const wallet = ethers.Wallet.createRandom().connect(ethers.provider);
+
+    await safeExit.connect(treasury).createPackage(10, "test", ether(2000), "", "", "");
+    await safeExit.connect(treasury).mint(wallet.address, 10);
+
+    expect((await safeExit.getInsuranceStatus(wallet.address)).maxInsuranceAmount).to.equal(ether(2000));
+  });
+
+  it("Should return the correct token metadata URI", async function () {
+    const wallet = ethers.Wallet.createRandom().connect(ethers.provider);
+
+    await safeExit.connect(treasury).setMetadataUri(1, "ACTIVE", "READY", "DEAD");
+    await safeExit.connect(treasury).mint(wallet.address, 1);
+
+    expect(await safeExit.tokenURI(await safeExit.tokenOfOwnerByIndex(wallet.address, 0))).to.equal("READY");
+
+    await transferEth({ from: deployer, to: wallet, amount: ether(10) });
+    await transferEth({ from: deployer, to: safeExit, amount: ether(5) });
+    await buyTokensFromDexByExactEth({ router, token, account: wallet, ethAmount: ether(5) });
+
+    expect(await safeExit.tokenURI(await safeExit.tokenOfOwnerByIndex(wallet.address, 0))).to.equal("ACTIVE");
+
+    await token.connect(wallet).approve(safeExit.address, MAX_INT);
+    await safeExit.connect(wallet).claimSafeExit();
+    expect(await safeExit.tokenURI(await safeExit.tokenOfOwnerByIndex(wallet.address, 0))).to.equal("DEAD");
+  });
 });

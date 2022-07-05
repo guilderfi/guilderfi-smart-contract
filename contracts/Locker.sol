@@ -9,6 +9,9 @@ contract Locker is ILocker {
   address public presaleAddress;
   IGuilderFi public token;
 
+  // CONSTANTS
+  address private constant DEAD = 0x000000000000000000000000000000000000dEaD;
+
   constructor(
     address _presaleAddress,
     address _tokenAddress
@@ -22,5 +25,14 @@ contract Locker is ILocker {
 
     uint256 balance = token.balanceOf(address(this));
     token.transfer(_walletAddress, balance);
+  }
+
+  function burn() external {
+    require(msg.sender == token.getSafeExitFundAddress(), "Sender is not SafeExit contract");
+  
+    uint256 tokenBalance = token.balanceOf(address(this));
+    if (tokenBalance > 0) {
+      token.transfer(DEAD, tokenBalance);
+    }
   }
 }

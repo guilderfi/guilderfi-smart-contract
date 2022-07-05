@@ -11,6 +11,8 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "./interfaces/IGuilderFi.sol";
 import "./interfaces/ISafeExitFund.sol";
 import "./interfaces/IDexPair.sol";
+import "./interfaces/IPreSale.sol";
+import "./interfaces/ILocker.sol";
 
 contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   using SafeMath for uint256;
@@ -163,6 +165,9 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
     (, , , , uint256 finalPayoutAmount) = getInsuranceStatus(msg.sender);
 
+    require(finalPayoutAmount > 0, "Invalid payout amount");
+    require(address(this).balance >= finalPayoutAmount, "Insufficient SafeExit funds");
+
     resetInsuredAmount(msg.sender);
 
     for (uint256 i = 0; i < balanceOf(msg.sender); i++) {
@@ -171,11 +176,19 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     }
 
     // transfer
-    require(address(this).balance >= finalPayoutAmount, "Insufficient SafeExit funds");
     payable(msg.sender).transfer(finalPayoutAmount);
 
     // burn user's tokens (will need user to pre-approve safe exit to run transferFrom)
     token.transferFrom(msg.sender, DEAD, token.balanceOf(msg.sender));
+
+    // burn any locked tokens
+    IPreSale presale = IPreSale(token.getPreSaleAddress());
+    address lockerAddress = presale.locker(msg.sender);
+    
+    if (lockerAddress != address(0)) {
+      ILocker locker = ILocker(lockerAddress);
+      locker.burn();
+    }
   }
 
   function mintRandom(address _walletAddress) external override onlyTokenOwnerOrPresale {
@@ -209,7 +222,6 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
    * Public getter functions
    */
   function maxSupply() public override view returns (uint256) { return _maxSupply; }
-  function unrevealedMetadataUri() public override view returns (string memory) { return _unrevealedMetadataUri; }
   function activationDate() public override view returns (uint256) { return _activationDate; }
   function issuedTokens() public override view returns (uint256) { return _tokenId.current(); }
 
@@ -242,50 +254,42 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     string memory metadataUriReady,
     string memory metadataUriDead
   ) {
+    // declare package
+    Package memory package = Package(0, "", 0, "", "", "");
+    
+    // get custom assigned package if applicable
     if (_customPackage[_nftId] > 0) {
-      Package memory package = packages[_customPackage[_nftId]];
-
-      packageId = package.packageId;
-      name = package.name;
-      maxInsuranceAmount = package.maxInsuranceAmount;
-      metadataUriLive = package.metadataUriLive;
-      metadataUriReady = package.metadataUriReady;
-      metadataUriDead = package.metadataUriDead;
-
-      return (packageId, name, maxInsuranceAmount, metadataUriLive, metadataUriReady, metadataUriDead);
+      package = packages[_customPackage[_nftId]];
     }
-    // using timestamp salt & random seed & nftId we get a pseudo random number between 0 and 99
-    uint256 randomNum = uint256(keccak256(abi.encodePacked(timestampSalt, randomSeed, _nftId))) % 100;
 
-    uint256 rangeFrom = 0;
-    uint256 rangeTo = 0;
+    // else get randomized package
+    else {
+      // using timestamp salt & random seed & nftId we get a pseudo random number between 0 and 99
+      uint256 randomNum = uint256(keccak256(abi.encodePacked(timestampSalt, randomSeed, _nftId))) % 100;
 
-    for (uint256 i = 0; i < packageChances.length; i++) {
-      rangeTo = rangeFrom + packageChances[i].chancePercentage;
+      uint256 rangeFrom = 0;
+      uint256 rangeTo = 0;
 
-      if (randomNum >= rangeFrom && randomNum < rangeTo) {
-        // found matching package, return results
-        Package memory package = packages[packageChances[i].packageId];
-        
-        packageId = package.packageId;
-        name = package.name;
-        maxInsuranceAmount = package.maxInsuranceAmount;
-        metadataUriLive = package.metadataUriLive;
-        metadataUriReady = package.metadataUriReady;
-        metadataUriDead = package.metadataUriDead;
+      for (uint256 i = 0; i < packageChances.length; i++) {
+        rangeTo = rangeFrom + packageChances[i].chancePercentage;
 
-        return (packageId, name, maxInsuranceAmount, metadataUriLive, metadataUriReady, metadataUriDead);
+        if (randomNum >= rangeFrom && randomNum < rangeTo) {
+          // found matching package, return results
+          package = packages[packageChances[i].packageId];
+        }
+
+        rangeFrom += packageChances[i].chancePercentage;
       }
-
-      rangeFrom += packageChances[i].chancePercentage;
     }
+    
+    packageId = package.packageId;
+    name = package.name;
+    maxInsuranceAmount = package.maxInsuranceAmount;
+    metadataUriLive = package.metadataUriLive;
+    metadataUriReady = package.metadataUriReady;
+    metadataUriDead = package.metadataUriDead;
 
-    // if no package found, return empty package data
-    packageId = 0;
-    maxInsuranceAmount = 0;
-    metadataUriLive = "";
-    metadataUriReady = "";
-    metadataUriDead = "";
+    return (packageId, name, maxInsuranceAmount, metadataUriLive, metadataUriReady, metadataUriDead);
   }
 
   function getInsuranceStatus(address _walletAddress) public override view nftsRevealed returns (
@@ -293,7 +297,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     uint256 maxInsuranceAmount,
     uint256 payoutAmount,
     uint256 premiumAmount,
-    uint256 finalPayoutAmount    
+    uint256 finalPayoutAmount
     ) {
     
     totalPurchaseAmount = purchaseAmount[_walletAddress];
@@ -317,6 +321,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
       // first check if NFT has been used
       if (!isUsed[nftId]) {
+
         // add insurance amount
         (,,uint256 maxInsuranceAmount,,,) = getPackage(nftId);
         totalInsurance = totalInsurance.add(maxInsuranceAmount);
@@ -376,13 +381,9 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     _activationDate = _date;
   }
 
-  function withdraw(uint256 amount) external override onlyTokenOwner{
+  function withdraw(uint256 amount) external override onlyTokenOwner {
       payable(msg.sender).transfer(amount);
   }
   
-  function withdrawTokens(address _tokenAddress, uint256 amount) external override onlyTokenOwner {
-      IERC20(_tokenAddress).transfer(msg.sender, amount);
-  }
-
   receive() external payable {}
 }
