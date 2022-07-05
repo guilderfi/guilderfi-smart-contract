@@ -285,7 +285,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
 
     // Run execute manually
     const autoLiquidityEngine = await ethers.getContractAt("IAutoLiquidityEngine", await token.getAutoLiquidityAddress());
-    await autoLiquidityEngine.connect(treasury).execute();
+    await autoLiquidityEngine.connect(treasury).executeLiquidityEngine();
 
     // check dex reserves after transaction
     const reservesAfter = await getLiquidityReserves({ token, pair });
@@ -323,7 +323,7 @@ describe(`Testing ${TOKEN_NAME}..`, function () {
     await buyTokensFromDex({ router, pair, token, account: account1, tokenAmount: ether(1000) });
 
     // Run execute manually
-    const swapExecuteTx = await swapEngine.connect(treasury).execute();
+    const swapExecuteTx = await swapEngine.connect(treasury).executeSwapEngine();
     const swapExecuteReceipt = await swapExecuteTx.wait();
     const swapExecuteGasUsed = BigInt(swapExecuteReceipt.cumulativeGasUsed) * BigInt(swapExecuteReceipt.effectiveGasPrice);
 

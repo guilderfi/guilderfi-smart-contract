@@ -20,13 +20,7 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
  
     bool private _inSwap = false;
 
-    // PRIVATE FLAGS
-    bool private _isRunning = false;
-    modifier running() {
-        _isRunning = true;
-        _;
-        _isRunning = false;
-    }
+    address private constant DEAD = 0x000000000000000000000000000000000000dEaD;
 
     modifier onlyToken() {
         require(msg.sender == address(_token), "Sender is not token contract"); _;
@@ -45,18 +39,17 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
     }
 
     // External execute function
-    function execute() override external onlyTokenOrTokenOwner {
+    function executeLiquidityEngine() override external onlyTokenOrTokenOwner {
         if (shouldExecute()) {
             _execute();
         }
     }
 
     function shouldExecute() internal view returns (bool) {
-        return
-            !_isRunning;
+        return _token.balanceOf(address(this)) > 0;
     }
 
-    function _execute() internal running {        
+    function _execute() internal {        
         // transfer all tokens from liquidity account to contract
         uint256 autoLiquidityAmount = _token.balanceOf(address(this));
 
@@ -102,8 +95,6 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
             );
             _inSwap = false;
         }
-
-        _inSwap = false;
     }
     
     function inSwap() public view override returns (bool) {
@@ -122,5 +113,8 @@ contract AutoLiquidityEngine is IAutoLiquidityEngine {
         IERC20(token).transfer(msg.sender, amount);
     }
 
+    function burn(uint256 amount) external override onlyTokenOwner {
+        _token.transfer(DEAD, amount);
+    }
     receive() external payable {}
 }

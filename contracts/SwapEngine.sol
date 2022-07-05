@@ -18,9 +18,6 @@ contract SwapEngine is ISwapEngine {
     // GuilderFi token contract address
     address internal _token;
  
-    // enabled flag
-    bool internal _isEnabled = true;
-
     // FEES COLLECTED
     uint256 internal _treasuryFeesCollected;
     uint256 internal _lrfFeesCollected;
@@ -28,13 +25,7 @@ contract SwapEngine is ISwapEngine {
 
     bool private _inSwap = false;
 
-    // PRIVATE FLAGS
-    bool private _isRunning = false;
-    modifier running() {
-        _isRunning = true;
-        _;
-        _isRunning = false;
-    }
+    address private constant DEAD = 0x000000000000000000000000000000000000dEaD;
 
     modifier onlyToken() {
         require(msg.sender == _token, "Sender is not token contract"); _;
@@ -53,10 +44,8 @@ contract SwapEngine is ISwapEngine {
     }
 
     // External execute function
-    function execute() override external onlyTokenOrTokenOwner {
-        if (shouldExecute()) {
-            _execute();
-        }
+    function executeSwapEngine() override external onlyTokenOrTokenOwner {
+        _execute();
     }
 
     // External execute function
@@ -66,11 +55,7 @@ contract SwapEngine is ISwapEngine {
         _treasuryFeesCollected = _treasuryFeesCollected.add(treasuryAmount);
     }
 
-    function shouldExecute() internal view returns (bool) {
-        return !_isRunning && _isEnabled;
-    }
-
-    function _execute() internal running {
+    function _execute() internal {
 
         IDexRouter _router = getRouter();
         uint256 totalGonFeesCollected = _treasuryFeesCollected.add(_lrfFeesCollected).add(_safeExitFeesCollected);
@@ -124,16 +109,8 @@ contract SwapEngine is ISwapEngine {
         return IDexPair(IGuilderFi(_token).getPair());
     }
 
-    function isEnabled() public view override returns (bool) {
-        return _isEnabled;
-    }
-
     function inSwap() public view override returns (bool) {
         return _inSwap;
-    }
-
-    function setEnabled(bool _enable) external override onlyTokenOwner {
-        _isEnabled = _enable;
     }
 
     function withdraw(uint256 amount) external override onlyTokenOwner {
@@ -142,6 +119,10 @@ contract SwapEngine is ISwapEngine {
     
     function withdrawTokens(address token, uint256 amount) external override onlyTokenOwner {
         IERC20(token).transfer(msg.sender, amount);
+    }
+
+    function burn(uint256 amount) external override onlyTokenOwner {
+        IERC20(_token).transfer(DEAD, amount);
     }
 
     receive() external payable {}

@@ -312,7 +312,7 @@ task("setup-metadata", "Set URI x SafeExit Metadata")
       tier5dead: "ipfs/" + IPFS_CID + "/Tier_5_Used_State_1_BNB.json",
     };
 
-    await safeExit.setUnrevealedMetadataUri(IPFS_GATEWAY + metadataUris.preReveal);
+    await safeExit.setPresaleMetadataUri(IPFS_GATEWAY + metadataUris.preReveal);
 
     await safeExit.setMetadataUri(
       1,

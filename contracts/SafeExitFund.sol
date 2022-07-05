@@ -33,7 +33,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     uint256 packageId;
     string name;
     uint256 maxInsuranceAmount;
-    string metadataUriLive;
+    string metadataUriActive;
     string metadataUriReady;
     string metadataUriDead;
   }
@@ -54,7 +54,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   uint256 private _maxSupply = 5000;
 
   // metadata uri's
-  string private _unrevealedMetadataUri = "";
+  string private _presaleMetadataUri = "";
 
   // lottery
   bool private randomSeedHasBeenSet = false;
@@ -118,7 +118,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
   /**
    * External function executed with every main contract transaction,
    */
-  function execute(
+  function captureTransaction(
     address sender,
     address recipient,
     uint256 tokenAmount
@@ -148,7 +148,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     purchaseAmount[_walletAddress] = purchaseAmount[_walletAddress].add(ethSpent);
   }
 
-  function capturePresalePurchaseAmount(address _walletAddress, uint256 _amount) external override onlyPresale {
+  function capturePresalePurchase(address _walletAddress, uint256 _amount) external override onlyPresale {
     purchaseAmount[_walletAddress] = purchaseAmount[_walletAddress].add(_amount);
   }
 
@@ -212,10 +212,10 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     uint256 _packageId,
     string memory _name,
     uint256 _maxInsuranceAmount,
-    string memory _uriLive,
+    string memory _uriActive,
     string memory _uriReady,
     string memory _uriDead) external override onlyTokenOwner {
-    packages[_packageId] = Package(_packageId, _name, _maxInsuranceAmount, _uriLive, _uriReady, _uriDead);
+    packages[_packageId] = Package(_packageId, _name, _maxInsuranceAmount, _uriActive, _uriReady, _uriDead);
   }
 
   /**
@@ -229,16 +229,21 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     require(_exists(_nftId), "Token does not exist");
 
     if (!randomSeedHasBeenSet) {
-      return _unrevealedMetadataUri;
+      return _presaleMetadataUri;
     }
 
-    (, , , string memory metadataUriLive, string memory metadataUriReady, string memory metadataUriDead) = getPackage(_nftId);
+    (, , , string memory metadataUriActive, string memory metadataUriReady, string memory metadataUriDead) = getPackage(_nftId);
 
-    if (isUsed[_nftId]) return metadataUriDead;
+    if (isUsed[_nftId]) {
+      return metadataUriDead;
+    }
 
     (, , , , uint256 finalPayoutAmount) = getInsuranceStatus(ownerOf(_nftId));
 
-    if (finalPayoutAmount > 0) return metadataUriLive;
+    if (finalPayoutAmount > 0) {
+      return metadataUriActive;
+    }
+
     return metadataUriReady;
   }
 
@@ -250,7 +255,7 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     uint256 packageId,
     string memory name,
     uint256 maxInsuranceAmount,
-    string memory metadataUriLive,
+    string memory metadataUriActive,
     string memory metadataUriReady,
     string memory metadataUriDead
   ) {
@@ -285,11 +290,11 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
     packageId = package.packageId;
     name = package.name;
     maxInsuranceAmount = package.maxInsuranceAmount;
-    metadataUriLive = package.metadataUriLive;
+    metadataUriActive = package.metadataUriActive;
     metadataUriReady = package.metadataUriReady;
     metadataUriDead = package.metadataUriDead;
 
-    return (packageId, name, maxInsuranceAmount, metadataUriLive, metadataUriReady, metadataUriDead);
+    return (packageId, name, maxInsuranceAmount, metadataUriActive, metadataUriReady, metadataUriDead);
   }
 
   function getInsuranceStatus(address _walletAddress) public override view nftsRevealed returns (
@@ -365,16 +370,16 @@ contract SafeExitFund is ISafeExitFund, ERC721Enumerable {
 
   function setMetadataUri(
     uint256 _packageId,
-    string memory _uriLive,
+    string memory _uriActive,
     string memory _uriReady,
     string memory _uriDead) external override onlyTokenOwner {
-    packages[_packageId].metadataUriLive = _uriLive;
+    packages[_packageId].metadataUriActive = _uriActive;
     packages[_packageId].metadataUriReady = _uriReady;
     packages[_packageId].metadataUriDead = _uriDead;
   }
 
-  function setUnrevealedMetadataUri(string memory _uri) external override onlyTokenOwner {
-    _unrevealedMetadataUri = _uri;
+  function setPresaleMetadataUri(string memory _uri) external override onlyTokenOwner {
+    _presaleMetadataUri = _uri;
   }
 
   function setActivationDate(uint256 _date) external override onlyTokenOwnerOrPresale {

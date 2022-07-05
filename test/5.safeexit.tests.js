@@ -118,7 +118,7 @@ describe(`Testing safe exit..`, function () {
     await preSale.connect(account4).buyTokens({ value: ether(0.25) });
     expect(await safeExit.balanceOf(account4.address)).to.equal(1);
 
-    await safeExit.connect(treasury).setUnrevealedMetadataUri("PRESALE");
+    await safeExit.connect(treasury).setPresaleMetadataUri("PRESALE");
     expect(await safeExit.tokenURI(await safeExit.tokenOfOwnerByIndex(account4.address, 0))).to.equal("PRESALE");
   });
 

@@ -3,13 +3,13 @@
 pragma solidity 0.8.9;
 
 interface ISafeExitFund {
-  function execute(
+  function captureTransaction(
     address sender,
     address recipient,
     uint256 tokenAmount
   ) external;
 
-  function capturePresalePurchaseAmount(address _walletAddress, uint256 _amount) external;
+  function capturePresalePurchase(address _walletAddress, uint256 _amount) external;
   function claimSafeExit() external;
   function mintRandom(address _walletAddress) external;
   function mint(address _walletAddress, uint256 maxInsuranceAmount) external;
@@ -24,7 +24,7 @@ interface ISafeExitFund {
     uint256 packageId,
     string memory name,
     uint256 maxInsuranceAmount,
-    string memory metadataUriLive,
+    string memory metadataUriActive,
     string memory metadataUriReady,
     string memory metadataUriDead
   );
@@ -33,7 +33,7 @@ interface ISafeExitFund {
     uint256 _packageId,
     string memory _name,
     uint256 _maxInsuranceAmount,
-    string memory _uriLive,
+    string memory _uriActive,
     string memory _uriReady,
     string memory _uriDead) external;
 
@@ -47,8 +47,8 @@ interface ISafeExitFund {
 
   // External setter functions
   function launchSafeExitNft(uint256 _randomSeed) external;
-  function setMetadataUri(uint256 _packageId, string memory _uriLive, string memory _uriReady, string memory _uriDead) external;
-  function setUnrevealedMetadataUri(string memory _uri) external;
+  function setMetadataUri(uint256 _packageId, string memory _uriActive, string memory _uriReady, string memory _uriDead) external;
+  function setPresaleMetadataUri(string memory _uri) external;
   function setActivationDate(uint256 _date) external;
   function setMaxSupply(uint256 newMaxSupply) external;
   

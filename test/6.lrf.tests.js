@@ -61,7 +61,7 @@ describe(`Testing liquidity relief fund..`, function () {
 
     const LRFBalanceBefore = await token.balanceOf(lrf.address);
 
-    await lrf.connect(account1).execute();
+    await lrf.connect(account1).executeLiquidityReliefFund();
 
     const ratioAfter = await lrf.getBackedLiquidityRatio();
 
@@ -84,7 +84,7 @@ describe(`Testing liquidity relief fund..`, function () {
 
     const LRFBalanceBefore = await token.balanceOf(lrf.address);
 
-    await lrf.connect(account1).execute();
+    await lrf.connect(account1).executeLiquidityReliefFund();
 
     const ratioAfter = await lrf.getBackedLiquidityRatio();
     // Ensure ratio is back to MIDPOINT
@@ -106,7 +106,7 @@ describe(`Testing liquidity relief fund..`, function () {
 
     const LRFBalanceBefore = await token.balanceOf(lrf.address);
 
-    await lrf.connect(account1).execute();
+    await lrf.connect(account1).executeLiquidityReliefFund();
 
     const ratioAfter = await lrf.getBackedLiquidityRatio();
 
@@ -129,7 +129,7 @@ describe(`Testing liquidity relief fund..`, function () {
 
     const LRFBalanceBefore = await token.balanceOf(lrf.address);
 
-    await lrf.connect(account1).execute();
+    await lrf.connect(account1).executeLiquidityReliefFund();
 
     const ratioAfter = await lrf.getBackedLiquidityRatio();
 

@@ -26,19 +26,11 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
     uint256 public constant LOW_CAP = 8500; // 85.00%
     uint256 public constant HIGH_CAP = 11500; // 115.00%
 
-    address public pairAddress;
-    bool internal _hasReachedActivationTarget = false; 
-    bool internal _enabled = true;
+    bool internal _hasReachedActivationTarget = false;
 
     bool private _inSwap = false;
 
-    // PRIVATE FLAGS
-    bool private _isRunning = false;
-    modifier running() {
-        _isRunning = true;
-        _;
-        _isRunning = false;
-    }
+    address private constant DEAD = 0x000000000000000000000000000000000000dEaD;
 
     modifier onlyToken() {
         require(msg.sender == address(_token), "Sender is not token contract"); _;
@@ -57,12 +49,13 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
     }
 
     // External execute function
-    function execute() override external onlyTokenOrTokenOwner {
+    function executeLiquidityReliefFund() override external onlyTokenOrTokenOwner {
         
-        // TODO: refactor so backed liquidity ratio is not calculated over and over
+        // check if the backed liquidity > 100% for the first time
         if (!_hasReachedActivationTarget) {
             uint256 backedLiquidityRatio = getBackedLiquidityRatio();
 
+            // turn on the LRF
             if (backedLiquidityRatio >= ACTIVATION_TARGET) {
                 _hasReachedActivationTarget = true;
             }
@@ -82,17 +75,13 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
 
         return
             _hasReachedActivationTarget &&
-            !_isRunning &&
-            _enabled &&
             backedLiquidityRatio <= HIGH_CAP &&
             backedLiquidityRatio >= LOW_CAP;
     }
 
-    function _execute() internal running {
+    function _execute() internal {
         uint256 backedLiquidityRatio = getBackedLiquidityRatio();
 
-        // TODO check if LOW cap has been hit before running
-        // TODO add code to check if should run (e.g. 2 day window)
         if (backedLiquidityRatio == 0) {
             return;
         }
@@ -118,7 +107,6 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
         if (ethToBuy > address(this).balance) {
             ethToBuy = address(this).balance;
         }
-
 
         address[] memory path = new address[](2);
         path[0] = router.WETH();
@@ -218,6 +206,10 @@ contract LiquidityReliefFund is ILiquidityReliefFund {
     
     function withdrawTokens(address token, uint256 amount) external override onlyTokenOwner {
         IERC20(token).transfer(msg.sender, amount);
+    }
+
+    function burn(uint256 amount) external override onlyTokenOwner {
+        _token.transfer(DEAD, amount);
     }
 
     receive() external payable {}

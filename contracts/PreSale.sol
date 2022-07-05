@@ -164,7 +164,7 @@ contract PreSale is IPreSale {
         _hasMintedSafeExit[msg.sender] = true;
     }
 
-    _safeExit.capturePresalePurchaseAmount(msg.sender, msg.value);    
+    _safeExit.capturePresalePurchase(msg.sender, msg.value);    
   }
 
   /**

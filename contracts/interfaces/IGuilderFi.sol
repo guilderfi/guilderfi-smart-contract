@@ -49,9 +49,6 @@ interface IGuilderFi {
     function setLrfFrequency(uint256 _frequency) external;
     function setSwapFrequency(uint256 _frequency) external;
     
-    // Other settings
-    function setMaxRebaseBatchSize(uint256 _maxRebaseBatchSize) external;
-
     // Address settings
     function setFeeExempt(address _address, bool _flag) external;
     function setBlacklist(address _address, bool _flag) external;

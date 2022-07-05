@@ -140,7 +140,7 @@ describe(`Testing liqudity..`, function () {
 
     // execute auto liquidity
     // const autoLiquidityEngine = await ethers.getContractAt("IAutoLiquidityEngine", await token.getAutoLiquidityAddress());
-    // await autoLiquidityEngine.connect(treasury).execute();
+    // await autoLiquidityEngine.connect(treasury).executeLiquidityEngine();
     // expect((await token.balanceOf(autoLiquidityEngine.address)).toNumber()).to.equal(0);
   });
 

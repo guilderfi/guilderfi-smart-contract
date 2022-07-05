@@ -309,7 +309,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         if (_isContract[sender]) return true;
         if (_isContract[recipient]) return true;
         if (sender == address(_router) || recipient == address(_router)) return true;
-        if (swapEngine.inSwap() || autoLiquidityEngine.inSwap()) return true;
+        if (swapEngine.inSwap() || lrf.inSwap() || autoLiquidityEngine.inSwap()) return true;
         return false;
     }
 
@@ -345,21 +345,21 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     function preTransactionActions(address sender, address recipient, uint256 amount) internal swapping {
 
         if (shouldExecuteSafeExit()) {
-            safeExitFund.execute(sender, recipient, amount);
+            safeExitFund.captureTransaction(sender, recipient, amount);
         }
 
         if (shouldSwap()) {
-            swapEngine.execute();
+            swapEngine.executeSwapEngine();
             lastSwapTime = block.timestamp;
         }
 
         if (shouldAddLiquidity()) {
-            autoLiquidityEngine.execute();
+            autoLiquidityEngine.executeLiquidityEngine();
             lastAddLiquidityTime = block.timestamp;
         }
    
         if (shouldExecuteLrf()) {
-            lrf.execute();
+            lrf.executeLiquidityReliefFund();
             lastLrfExecutionTime = block.timestamp;
         }
 
@@ -503,10 +503,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
 
     function setBlacklist(address _address, bool _flag) external override onlyOwner {
         blacklist[_address] = _flag;    
-    }
-
-    function setMaxRebaseBatchSize(uint256 _maxRebaseBatchSize) external override onlyOwner {
-        maxRebaseBatchSize = _maxRebaseBatchSize;
     }
 
     function setDex(address _routerAddress) external override onlyOwner {
