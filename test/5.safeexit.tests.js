@@ -139,8 +139,10 @@ describe(`Testing safe exit..`, function () {
     const account6ethBalanceBefore = await ethers.provider.getBalance(account6.address);
 
     // claim safe exit
+    let txRejectedGasUsed = 0;
     try {
-      await safeExit.connect(account6).claimSafeExit();
+      const txRejected = await safeExit.connect(account6).claimSafeExit();
+      txRejectedGasUsed = await gasUsed(txRejected);
     } catch (error) {
       expect(error.message).to.contain("SafeExit not available yet");
     }
@@ -153,7 +155,7 @@ describe(`Testing safe exit..`, function () {
     const account6ethBalanceAfter = await ethers.provider.getBalance(account6.address);
     const account6ethPayout = account6ethBalanceAfter.sub(account6ethBalanceBefore);
 
-    expect(account6ethPayout).to.equal(ether(1.0625).sub(gas)); // account for gas
+    expect(account6ethPayout).to.equal(ether(1.0625).sub(gas).sub(txRejectedGasUsed)); // account for gas
     expect(await token.balanceOf(account6.address)).to.equal(0);
   });
 
