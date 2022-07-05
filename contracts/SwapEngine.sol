@@ -12,118 +12,123 @@ import "./interfaces/IDexPair.sol";
 import "./interfaces/IDexRouter.sol";
 
 contract SwapEngine is ISwapEngine {
+  using SafeMath for uint256;
 
-    using SafeMath for uint256;
+  // GuilderFi token contract address
+  address internal _token;
 
-    // GuilderFi token contract address
-    address internal _token;
- 
-    // FEES COLLECTED
-    uint256 internal _treasuryFeesCollected;
-    uint256 internal _lrfFeesCollected;
-    uint256 internal _safeExitFeesCollected;
+  // FEES COLLECTED
+  uint256 internal _treasuryFeesCollected;
+  uint256 internal _lrfFeesCollected;
+  uint256 internal _safeExitFeesCollected;
 
-    bool private _inSwap = false;
+  bool private _inSwap = false;
 
-    address private constant DEAD = 0x000000000000000000000000000000000000dEaD;
+  address private constant DEAD = 0x000000000000000000000000000000000000dEaD;
 
-    modifier onlyToken() {
-        require(msg.sender == _token, "Sender is not token contract"); _;
+  modifier onlyToken() {
+    require(msg.sender == _token, "Sender is not token contract");
+    _;
+  }
+
+  modifier onlyTokenOwner() {
+    require(msg.sender == IGuilderFi(_token).getOwner(), "Sender is not token owner");
+    _;
+  }
+
+  modifier onlyTokenOrTokenOwner() {
+    require(msg.sender == IGuilderFi(_token).getOwner() || msg.sender == _token, "Sender is not contract or owner");
+    _;
+  }
+
+  constructor(address tokenAddress) {
+    _token = tokenAddress;
+  }
+
+  // External execute function
+  function executeSwapEngine() external override onlyTokenOrTokenOwner {
+    _execute();
+  }
+
+  // External execute function
+  function recordFees(
+    uint256 lrfAmount,
+    uint256 safeExitAmount,
+    uint256 treasuryAmount
+  ) external override onlyToken {
+    _lrfFeesCollected = _lrfFeesCollected.add(lrfAmount);
+    _safeExitFeesCollected = _safeExitFeesCollected.add(safeExitAmount);
+    _treasuryFeesCollected = _treasuryFeesCollected.add(treasuryAmount);
+  }
+
+  function _execute() internal {
+    IDexRouter _router = getRouter();
+    uint256 totalGonFeesCollected = _treasuryFeesCollected.add(_lrfFeesCollected).add(_safeExitFeesCollected);
+    uint256 amountToSwap = IGuilderFi(_token).balanceOf(address(this));
+
+    if (amountToSwap == 0) {
+      return;
     }
 
-    modifier onlyTokenOwner() {
-        require(msg.sender == IGuilderFi(_token).getOwner(), "Sender is not token owner"); _;
-    }
+    uint256 balanceBefore = address(this).balance;
 
-    modifier onlyTokenOrTokenOwner() {
-        require(msg.sender == IGuilderFi(_token).getOwner() || msg.sender == _token, "Sender is not contract or owner"); _;
-    }
+    address[] memory path = new address[](2);
+    path[0] = _token;
+    path[1] = _router.WETH();
 
-    constructor (address tokenAddress) {
-        _token = tokenAddress;
-    }
+    // swap all tokens in contract for ETH
+    _inSwap = true;
+    _router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+      amountToSwap,
+      0,
+      path,
+      address(this),
+      block.timestamp
+    );
+    _inSwap = false;
 
-    // External execute function
-    function executeSwapEngine() override external onlyTokenOrTokenOwner {
-        _execute();
-    }
+    uint256 amountETH = address(this).balance.sub(balanceBefore);
+    uint256 treasuryETH = amountETH.mul(_treasuryFeesCollected).div(totalGonFeesCollected);
+    uint256 safeExitETH = amountETH.mul(_safeExitFeesCollected).div(totalGonFeesCollected);
+    uint256 lrfETH = amountETH.sub(treasuryETH).sub(safeExitETH);
 
-    // External execute function
-    function recordFees(uint256 lrfAmount, uint256 safeExitAmount, uint256 treasuryAmount) override external onlyToken {
-        _lrfFeesCollected = _lrfFeesCollected.add(lrfAmount);
-        _safeExitFeesCollected = _safeExitFeesCollected.add(safeExitAmount);
-        _treasuryFeesCollected = _treasuryFeesCollected.add(treasuryAmount);
-    }
+    _treasuryFeesCollected = 0;
+    _lrfFeesCollected = 0;
+    _safeExitFeesCollected = 0;
 
-    function _execute() internal {
+    // send eth to treasury
+    (bool success, ) = payable(IGuilderFi(_token).getTreasuryAddress()).call{value: treasuryETH}("");
 
-        IDexRouter _router = getRouter();
-        uint256 totalGonFeesCollected = _treasuryFeesCollected.add(_lrfFeesCollected).add(_safeExitFeesCollected);
-        uint256 amountToSwap = IGuilderFi(_token).balanceOf(address(this));
+    // send eth to lrf
+    (success, ) = payable(IGuilderFi(_token).getLrfAddress()).call{value: lrfETH}("");
 
-        if (amountToSwap == 0) {
-            return;
-        }
+    // send eth to safe exit fund
+    (success, ) = payable(IGuilderFi(_token).getSafeExitFundAddress()).call{value: safeExitETH}("");
+  }
 
-        uint256 balanceBefore = address(this).balance;
+  function getRouter() internal view returns (IDexRouter) {
+    return IDexRouter(IGuilderFi(_token).getRouter());
+  }
 
-        address[] memory path = new address[](2);
-        path[0] = _token;
-        path[1] = _router.WETH();
+  function getPair() internal view returns (IDexPair) {
+    return IDexPair(IGuilderFi(_token).getPair());
+  }
 
-        // swap all tokens in contract for ETH
-        _inSwap = true;
-        _router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            amountToSwap,
-            0,
-            path,
-            address(this),
-            block.timestamp
-        );
-        _inSwap = false;
-        
-        uint256 amountETH = address(this).balance.sub(balanceBefore);
-        uint256 treasuryETH = amountETH.mul(_treasuryFeesCollected).div(totalGonFeesCollected);
-        uint256 safeExitETH = amountETH.mul(_safeExitFeesCollected).div(totalGonFeesCollected);
-        uint256 lrfETH = amountETH.sub(treasuryETH).sub(safeExitETH);
+  function inSwap() public view override returns (bool) {
+    return _inSwap;
+  }
 
-        _treasuryFeesCollected = 0;
-        _lrfFeesCollected = 0;
-        _safeExitFeesCollected = 0;
-        
-        // send eth to treasury
-        (bool success, ) = payable(IGuilderFi(_token).getTreasuryAddress()).call{ value: treasuryETH }("");
+  function withdraw(uint256 amount) external override onlyTokenOwner {
+    payable(msg.sender).transfer(amount);
+  }
 
-        // send eth to lrf
-        (success, ) = payable(IGuilderFi(_token).getLrfAddress()).call{ value: lrfETH }("");
+  function withdrawTokens(address token, uint256 amount) external override onlyTokenOwner {
+    IERC20(token).transfer(msg.sender, amount);
+  }
 
-        // send eth to safe exit fund
-        (success, ) = payable(IGuilderFi(_token).getSafeExitFundAddress()).call{ value: safeExitETH }("");
-    }
+  function burn(uint256 amount) external override onlyTokenOwner {
+    IERC20(_token).transfer(DEAD, amount);
+  }
 
-    function getRouter() internal view returns (IDexRouter) {
-        return IDexRouter(IGuilderFi(_token).getRouter());
-    }
-
-    function getPair() internal view returns (IDexPair) {
-        return IDexPair(IGuilderFi(_token).getPair());
-    }
-
-    function inSwap() public view override returns (bool) {
-        return _inSwap;
-    }
-
-    function withdraw(uint256 amount) external override onlyTokenOwner {
-        payable(msg.sender).transfer(amount);
-    }
-    
-    function withdrawTokens(address token, uint256 amount) external override onlyTokenOwner {
-        IERC20(token).transfer(msg.sender, amount);
-    }
-
-    function burn(uint256 amount) external override onlyTokenOwner {
-        IERC20(_token).transfer(DEAD, amount);
-    }
-
-    receive() external payable {}
+  receive() external payable {}
 }
