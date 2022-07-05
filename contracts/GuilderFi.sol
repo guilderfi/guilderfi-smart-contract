@@ -132,7 +132,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     }
     
     modifier canTrade(address from) {
-        require(hasLaunched || from == address(_treasuryAddress), "Token has not launched yet");
+        require(hasLaunched || from == address(_treasuryAddress) || _isContract[from], "Token has not launched yet");
         _;
     }
 
@@ -278,7 +278,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     function transfer(address to, uint256 value) external
         override(IGuilderFi, IERC20)
         validRecipient(to)
-        canTrade(msg.sender)
         returns (bool) {
         
         _transferFrom(msg.sender, to, value);
@@ -288,7 +287,6 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
     function transferFrom(address from, address to, uint256 value) external
         override(IGuilderFi, IERC20)
         validRecipient(to)
-        canTrade(from)
         returns (bool) {
 
         if (_allowedFragments[from][msg.sender] != type(uint256).max) {
@@ -315,7 +313,7 @@ contract GuilderFi is IGuilderFi, IERC20, Ownable {
         return false;
     }
 
-    function _transferFrom(address sender, address recipient, uint256 amount) internal returns (bool) {
+    function _transferFrom(address sender, address recipient, uint256 amount) internal canTrade(sender) returns (bool) {
     
         require(!blacklist[sender] && !blacklist[recipient], "Address blacklisted");
 

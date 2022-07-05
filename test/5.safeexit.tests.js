@@ -67,8 +67,6 @@ describe(`Testing safe exit..`, function () {
       tokenAmount,
       ethAmount,
     });
-
-    await token.connect(treasury).launchToken();
   });
 
   it("Should mint correct number of NFTs with each purchase", async function () {
@@ -129,6 +127,7 @@ describe(`Testing safe exit..`, function () {
     // finalise sale
     await preSale.connect(treasury).setLockDuration(0);
     await preSale.connect(treasury).finalizeSale();
+    await token.connect(treasury).launchToken();
 
     // set random safe exit seed
     await safeExit.connect(treasury).launchSafeExitNft(123456);

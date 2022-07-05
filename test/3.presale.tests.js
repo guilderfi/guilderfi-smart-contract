@@ -68,7 +68,6 @@ describe(`Testing pre-sale..`, function () {
     await transferEth({ from: deployer, to: account5, amount: ether(150) });
     await transferEth({ from: deployer, to: account6, amount: ether(150) });
     await transferEth({ from: deployer, to: account7, amount: ether(150) });
-    await token.connect(treasury).launchToken();
   });
 
   it("Should set up custom sales tiers", async function () {
@@ -326,6 +325,9 @@ describe(`Testing pre-sale..`, function () {
     const remainingTokens = preSaleTokenBalanceBefore.sub(expectedLiquidityTokens);
     expect(treasuryTokensAfter.sub(treasuryTokensBefore)).to.equal(remainingTokens);
     expect(await token.balanceOf(preSale.address)).to.equal(0);
+
+    // launch token (open up trading)
+    await token.connect(treasury).launchToken();
   });
 
   it("Should allow users to unlock their purchased tokens", async function () {
